@@ -1,0 +1,13 @@
+{
+  "chain_endpoint": "wss://entrypoint-finney.opentensor.ai:443",
+  "expected_genesis": "0x2f0555cc76fc2840a25a6ea3b9637146806f1f44b090c175ffde2a7e5ab36c03",
+  "netuid": null,
+  "expected_owner_hotkey": null,
+  "expected_owner_coldkey": null,
+  "expected_owner_registration_block": null,
+  "validator_hotkey": null,
+  "expected_validator_registration_block": null,
+  "state_file": ".state/observer.json",
+  "poll_seconds": 60,
+  "miner_burned_semantics": null
+}

@@ -1,0 +1,23 @@
+[Unit]
+Description=DaniLabs read-only validator observer
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=dani-validator
+Group=dani-validator
+WorkingDirectory=/opt/danilabs/subnet
+ExecStart=/opt/danilabs/subnet/.venv/bin/dani-validator --config /etc/danilabs/validator-observer.json watch
+Restart=on-failure
+RestartSec=10
+StateDirectory=danilabs-validator
+UMask=0077
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/var/lib/danilabs-validator
+
+[Install]
+WantedBy=multi-user.target

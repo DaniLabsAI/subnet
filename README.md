@@ -34,6 +34,11 @@ measurements, without customer prompts or generated responses.
 
 ## Current status
 
-This repository currently contains documentation only. The validator
-implementation, tests, configuration, and operator setup instructions will be
-added as development progresses.
+The first executable pilot is a **read-only chain observer**. It checks finalized
+registered subnet identities, validator state and burn evidence. It does not open wallets,
+submit weights, maintain the existing burn process, or calculate trusted miner
+scores. Authenticated evaluation and live weight submission are still pending.
+
+The CLI provides `status`, `watch` and a `shadow` command that explicitly reports
+scoring as pending. See the [operator guide](docs/operator-pilot.md) for setup,
+host sizing, configuration pins and the boundaries of burn verification.
