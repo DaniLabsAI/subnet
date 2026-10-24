@@ -34,8 +34,8 @@ if path.is_symlink():
 path.write_text(json.dumps(ecosystem))
 path.chmod(0o644)
 prefix=['runuser','-u','dani-validator','--','env','PM2_HOME=/var/lib/dani-validator/.pm2']
-subprocess.run(prefix+['/usr/local/bin/pm2','startOrReload',str(path),'--only','danilabs-validator','--update-env'],check=True)
-subprocess.run(prefix+['/usr/local/bin/pm2','save','--force'],check=True)
+subprocess.run(prefix+['/usr/local/bin/pm2','startOrReload',str(path),'--only','danilabs-validator','--update-env'],check=True,cwd='/var/lib/dani-validator')
+subprocess.run(prefix+['/usr/local/bin/pm2','save','--force'],check=True,cwd='/var/lib/dani-validator')
 link=Path('/opt/danilabs/worker-current')
 temporary=link.with_name('worker-current.next')
 if temporary.exists() or temporary.is_symlink():
