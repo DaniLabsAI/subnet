@@ -89,7 +89,11 @@ class Updater:
     def await_health(self, sha):
         deadline = time.monotonic() + self.config.get('health_timeout_seconds', 120)
         while time.monotonic() < deadline:
-            if healthy(load_state(self.config['worker_state']), sha):
+            try:
+                state = load_state(self.config['worker_state'])
+            except (OSError, ValueError):
+                state = None
+            if healthy(state, sha):
                 return True
             time.sleep(2)
         return False

@@ -4,6 +4,7 @@ from __future__ import annotations
 import datetime as dt
 import json
 import os
+from pathlib import Path
 import socket
 import time
 
@@ -39,7 +40,7 @@ def run(settings, socket_path, count=0):
             # Signer independently reads finalized state and checks its immutable policy.
             signer = request_burn(socket_path)
             result.update(status='healthy' if report['burn_guard']['checks_passed']
-                          and signer.get('status') not in ('blocked', 'expired_commit') else 'waiting',
+                          and signer.get('status') in ('maintained','submitted','committed','revealed','pending','rate_limited') else 'waiting',
                           snapshot=snapshot, burn_guard=report['burn_guard'], signer=signer,
                           last_epoch_100_percent_miner_burn_verified=report['last_epoch_100_percent_miner_burn_verified'])
             previous = snapshot
@@ -47,6 +48,8 @@ def run(settings, socket_path, count=0):
             result.update(status='unavailable', error_type=type(exc).__name__)
         result['heartbeat_at'] = dt.datetime.now(dt.timezone.utc).isoformat()
         save_state(settings.state_file, result)
+        # This contains public chain evidence only, never key material or salts.
+        Path(settings.state_file).chmod(0o640)
         print(json.dumps(result, sort_keys=True), flush=True)
         i += 1
         if count and i >= count:
