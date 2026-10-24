@@ -5,7 +5,7 @@ import tempfile
 import unittest
 from unittest.mock import Mock
 
-from danilabs_validator.burn import BurnBlocked, BurnSigner, preflight
+from danilabs_validator.burn import BurnBlocked, BurnSigner, commitment_hex, preflight
 from danilabs_validator.config import FINNEY_GENESIS, LOCALNET_GENESIS, Settings
 from danilabs_validator.health import healthy
 from test_observer import FakeSubstrate, SETTINGS
@@ -13,6 +13,13 @@ from danilabs_validator.chain import FinalizedChain
 
 
 class BurnTests(unittest.TestCase):
+    def test_sdk_h256_commitment_encodings(self):
+        expected='0x'+bytes(range(32)).hex()
+        for raw in (expected, bytes(range(32)), tuple(range(32)), (tuple(range(32)),)):
+            self.assertEqual(commitment_hex(raw),expected)
+        for raw in ('invalid', ((256,)*32,), (True,)*32, None):
+            self.assertIsNone(commitment_hex(raw))
+
     def fixture(self):
         settings = replace(SETTINGS, network='localnet', expected_genesis=LOCALNET_GENESIS,
                            chain_endpoint='ws://127.0.0.1:19944')
@@ -84,9 +91,10 @@ class BurnTests(unittest.TestCase):
             signer=BurnSigner(settings,folder+'/state.json')
             signer.chain.snapshot=lambda:snapshot
             signer.chain.substrate=Mock()
-            signer.chain.substrate.query.return_value=[['commit-hash',3,80,0]]
+            digest='0x'+bytes(range(32)).hex()
+            signer.chain.substrate.query.return_value=[[(tuple(range(32)),),3,80,0]]
             signer.state['pending']={'identity':[73,'owner-hotkey',1,10,'validator-hotkey',20],
-                'commit_hash':'commit-hash','salt':[1,2,3], 'prepared_block':80,'last_attempt_block':80}
+                'commit_hash':digest,'salt':[1,2,3], 'prepared_block':80,'last_attempt_block':80}
             signer.persist(snapshot)
             restarted=BurnSigner(settings,folder+'/state.json',signer.chain.substrate)
             restarted.chain.snapshot=lambda:snapshot

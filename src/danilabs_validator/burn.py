@@ -14,6 +14,21 @@ class BurnBlocked(RuntimeError):
     pass
 
 
+def commitment_hex(raw):
+    """SDK9 decodes H256 newtypes as ((byte, ...),), not always as hex."""
+    if isinstance(raw, str) and len(raw) == 66 and raw.startswith('0x'):
+        try:
+            return '0x' + bytes.fromhex(raw[2:]).hex()
+        except ValueError:
+            return None
+    if isinstance(raw, (list, tuple)) and len(raw) == 1:
+        return commitment_hex(raw[0])
+    if isinstance(raw, (bytes, list, tuple)) and len(raw) == 32:
+        if all(type(x) is int and 0 <= x <= 255 for x in raw):
+            return '0x' + bytes(raw).hex()
+    return None
+
+
 def preflight(snapshot, settings, previous=None):
     if settings.network != "localnet" or settings.expected_genesis != LOCALNET_GENESIS:
         raise BurnBlocked("This writer cannot sign on Finney or any other chain")
@@ -106,7 +121,10 @@ class BurnSigner:
             commits = value(self.chain.substrate.query(
                 "SubtensorModule", "WeightCommits", [n, validator["hotkey"]],
                 block_hash=snapshot["source_hash"])) or []
-            match = next((x for x in commits if x[0] == pending["commit_hash"]), None)
+            matches = [x for x in commits if commitment_hex(x[0]) == pending["commit_hash"]]
+            match = next((x for x in matches
+                          if x[1] + snapshot['reveal_period_epochs'] >= snapshot['epoch_index']),
+                         matches[-1] if matches else None)
             if match:
                 target_epoch = match[1] + snapshot["reveal_period_epochs"]
                 epoch = snapshot["epoch_index"]
