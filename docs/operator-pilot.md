@@ -1,9 +1,10 @@
 # Validator observer pilot
 
-This release reads finalized Finney state for an explicitly configured subnet. It opens no wallet,
-contains no transaction writer, and does not maintain burn weights. Keep the
-existing burn process running while this observer is tested. No deployment or
-chain configuration changes are part of installing the source.
+The observer commands in this guide read finalized state for an explicitly
+configured subnet. They open no wallet and do not maintain burn weights. Keep
+the existing Finney burn process running while the observer is tested. The
+separate [localnet burn pilot](localnet-validator.md) has its own signer and
+deployment controls; installing source alone does not activate it.
 
 ## Host
 
@@ -112,7 +113,7 @@ Observe JSON output in the journal; alerts for stalled polling and RPC failures
 remain an operator responsibility. Do not replace an existing burn service with
 this unit.
 
-## Before adding a burn writer
+## Before enabling a production burn writer
 
 Preserve and audit the existing writer first. Confirm the deployed runtime,
 owner/validator registration, effective stake, permit, mechanism count,

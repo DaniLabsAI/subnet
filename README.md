@@ -34,11 +34,15 @@ measurements, without customer prompts or generated responses.
 
 ## Current status
 
-The first executable pilot is a **read-only chain observer**. It checks finalized
-registered subnet identities, validator state and burn evidence. It does not open wallets,
-submit weights, maintain the existing burn process, or calculate trusted miner
-scores. Authenticated evaluation and live weight submission are still pending.
+The validator includes a read-only finalized-chain observer and a **localnet
+burn pilot**. The pilot runs an isolated signer, a PM2 worker, and a staged worker
+updater with health checks and rollback. It targets the subnet owner's registered
+UID and verifies the resulting weight row and miner-burn settlement separately.
 
-The CLI provides `status`, `watch` and a `shadow` command that explicitly reports
-scoring as pending. See the [operator guide](docs/operator-pilot.md) for setup,
-host sizing, configuration pins and the boundaries of burn verification.
+Transaction signing is currently restricted to a pinned development chain and a
+known development key. Finney remains read-only. Miner scoring and production
+weight submission are still pending.
+
+See the [observer guide](docs/operator-pilot.md) for chain monitoring and the
+[localnet guide](docs/localnet-validator.md) for burn testing, PM2 controls and
+updates.
