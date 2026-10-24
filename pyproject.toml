@@ -5,9 +5,9 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "danilabs-validator"
 version = "0.1.0"
-description = "Read-only DaniLabs finalized-chain observer"
+description = "DaniLabs finalized-chain observer and isolated localnet burn validator"
 requires-python = ">=3.11"
-dependencies = ["bittensor==9.12.2"]
+dependencies = ["bittensor==9.12.2", "async-substrate-interface==1.6.4"]
 
 [project.scripts]
 dani-validator = "danilabs_validator.__main__:main"

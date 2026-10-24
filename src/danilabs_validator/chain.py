@@ -43,7 +43,7 @@ class FinalizedChain:
             s = self.substrate
             genesis = s.get_block_hash(0)
             if genesis != self.settings.expected_genesis:
-                raise ChainUnavailable("Chain genesis does not match the configured Finney pin")
+                raise ChainUnavailable("Chain genesis does not match the configured network pin")
             block_hash = s.rpc_request("chain_getFinalizedHead", [])["result"]
             header = s.rpc_request("chain_getHeader", [block_hash])["result"]
             block = int(header["number"], 16)
@@ -125,7 +125,7 @@ class FinalizedChain:
                     errors["last_epoch_evidence"] = "unavailable; historical RPC may be required"
             mechanism_count = query("MechanismCountCurrent", [n])
             return {
-                "network": "finney", "genesis": genesis, "netuid": n,
+                "network": self.settings.network, "genesis": genesis, "netuid": n,
                 "source_block": block, "source_hash": block_hash,
                 "observed_at_utc": datetime.now(timezone.utc).isoformat(),
                 "runtime_spec_version": runtime.get("specVersion"),
@@ -145,6 +145,9 @@ class FinalizedChain:
                 "min_allowed_weights": query("MinAllowedWeights", [n]),
                 "max_weight_limit": query("MaxWeightsLimit", [n]),
                 "stake_threshold_raw": query("StakeThreshold", []),
+                "epoch_index": query("SubnetEpochIndex", [n]),
+                "reveal_period_epochs": query("RevealPeriodEpochs", [n]),
+                "activity_cutoff": query("ActivityCutoff", [n]),
                 "unavailable_fields": errors,
             }
         except ChainUnavailable:

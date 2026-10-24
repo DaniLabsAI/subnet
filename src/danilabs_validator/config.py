@@ -7,10 +7,12 @@ import re
 from urllib.parse import urlsplit
 
 FINNEY_GENESIS = "0x2f0555cc76fc2840a25a6ea3b9637146806f1f44b090c175ffde2a7e5ab36c03"
+LOCALNET_GENESIS = "0xea6ec824e61841ae3324cee5de0a98d27d4b83a9c423119aa6addf531b024de4"
 
 
 @dataclass(frozen=True)
 class Settings:
+    network: str = "finney"
     chain_endpoint: str = "wss://entrypoint-finney.opentensor.ai:443"
     expected_genesis: str = FINNEY_GENESIS
     netuid: int | None = None
@@ -22,13 +24,25 @@ class Settings:
     state_file: str = ".state/observer.json"
     poll_seconds: int = 60
     miner_burned_semantics: dict | None = None
+    weight_submission_mode: str = "plain"
 
     def validate(self) -> None:
         endpoint = urlsplit(self.chain_endpoint)
-        if endpoint.scheme != "wss" or not endpoint.hostname or endpoint.username or endpoint.password:
-            raise ValueError("A credential-free wss chain endpoint is required")
-        if self.expected_genesis != FINNEY_GENESIS:
-            raise ValueError("This pilot is pinned to the verified Finney genesis")
+        if not endpoint.hostname or endpoint.username or endpoint.password:
+            raise ValueError("A credential-free chain endpoint is required")
+        if self.network == "finney":
+            if endpoint.scheme != "wss" or self.expected_genesis != FINNEY_GENESIS:
+                raise ValueError("Finney requires WSS and its verified genesis")
+        elif self.network == "localnet":
+            if (endpoint.scheme != "ws" or endpoint.hostname != "127.0.0.1"
+                    or self.expected_genesis != LOCALNET_GENESIS):
+                raise ValueError("Localnet requires loopback WS and the pinned development genesis")
+        else:
+            raise ValueError("network must be finney or localnet")
+        if self.weight_submission_mode not in ("plain", "legacy-commit-reveal"):
+            raise ValueError("Unsupported weight_submission_mode")
+        if self.weight_submission_mode != "plain" and self.network != "localnet":
+            raise ValueError("Legacy commit/reveal is restricted to localnet acceptance")
         if type(self.netuid) is not int or not 1 <= self.netuid <= 65535:
             raise ValueError("A non-root netuid must be explicitly configured")
         if type(self.poll_seconds) is not int or self.poll_seconds < 15:

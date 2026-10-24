@@ -17,11 +17,17 @@ def main(argv=None) -> int:
     sub.add_parser("shadow", help="Inspect identity; scoring is pending authenticated reports")
     watch = sub.add_parser("watch", help="Poll and persist local observer state")
     watch.add_argument("--count", type=int, default=0, help="Number of polls; 0 watches continuously")
+    burn = sub.add_parser("burn-watch", help="Localnet worker; requests fixed policy actions from an isolated signer")
+    burn.add_argument("--signer-socket", required=True)
+    burn.add_argument("--count", type=int, default=0)
     args = parser.parse_args(argv)
-    if args.command == "watch" and args.count < 0:
+    if args.command in ("watch", "burn-watch") and args.count < 0:
         parser.error("--count must be non-negative")
     try:
         settings = load_settings(args.config)
+        if args.command == "burn-watch":
+            from .worker import run
+            return run(settings, args.signer_socket, args.count)
         chain = FinalizedChain(settings)
         previous = load_state(settings.state_file)
         count = 0

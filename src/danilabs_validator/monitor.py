@@ -30,7 +30,7 @@ def registration_identity(registration):
     return [registration["hotkey"], registration["uid"], registration["registration_block"]]
 
 
-def assess(snapshot: dict, settings: Settings, previous: dict | None = None) -> dict:
+def assess(snapshot: dict, settings: Settings, previous: dict | None = None, *, require_burn_row=True) -> dict:
     reasons = []
     if snapshot.get("genesis") != settings.expected_genesis or snapshot.get("netuid") != settings.netuid:
         reasons.append("Snapshot does not match the configured chain/subnet pin")
@@ -52,8 +52,9 @@ def assess(snapshot: dict, settings: Settings, previous: dict | None = None) -> 
         reasons.append("Validator permit is absent or unavailable")
     if snapshot.get("recycle_or_burn_raw") not in ({"Burn": ()}, {"Burn": []}, "Burn"):
         reasons.append("RecycleOrBurn is not verified as Burn")
-    if snapshot.get("commit_reveal_enabled") is not False:
-        reasons.append("Plain-weight burn writer compatibility not established: commit/reveal is enabled or unavailable")
+    expected_commit_reveal = settings.weight_submission_mode == "legacy-commit-reveal"
+    if snapshot.get("commit_reveal_enabled") is not expected_commit_reveal:
+        reasons.append("Configured weight submission mode does not match commit/reveal state")
     if snapshot.get("mechanism_count") != 1:
         reasons.append("Single-mechanism scope is unverified")
     if previous:
@@ -79,7 +80,7 @@ def assess(snapshot: dict, settings: Settings, previous: dict | None = None) -> 
             row_burn = bool(nonzero and len(nonzero) == 1 and nonzero[0] == (owner["uid"], 65535))
         except (ValueError, TypeError):
             row_burn = None
-    if row_burn is not True:
+    if require_burn_row and row_burn is not True:
         reasons.append("Finalized validator row is not verified as 100% to the current owner UID")
     evidence = snapshot.get("last_epoch_evidence") or {}
     same_runtime = evidence.get("runtime_spec_version") == evidence.get("mode_runtime_spec_version")
@@ -87,7 +88,7 @@ def assess(snapshot: dict, settings: Settings, previous: dict | None = None) -> 
     epoch = snapshot.get("last_epoch_block")
     epoch_valid = type(epoch) is int and 0 < epoch <= snapshot["source_block"] and evidence.get("source_block") == epoch and bool(evidence.get("source_hash")) and evidence.get("mode_source_block") == epoch - 1 and bool(evidence.get("mode_source_hash"))
     epoch_burn = evidence.get("recycle_or_burn_raw") in ({"Burn": ()}, {"Burn": []}, "Burn")
-    observed_full = None if fraction is None or not epoch_valid or not epoch_burn or reasons else fraction == "1"
+    observed_full = None if fraction is None or not epoch_valid or not epoch_burn or reasons or row_burn is not True else fraction == "1"
     return {
         **snapshot,
         "observer": {"chain_writes": False, "wallet_loaded": False, "scoring": "pending_authenticated_reports"},
