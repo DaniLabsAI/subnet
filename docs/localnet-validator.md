@@ -1,6 +1,6 @@
 # Localnet validator pilot
 
-This pilot tests validator operation before the SN2 hotkey handover. It signs
+This pilot tests validator operation before production deployment. It signs
 only on the pinned private development chain, using the publicly known `//Bob`
 development identity. It cannot load the new production hotkey or write to Finney.
 
@@ -110,6 +110,6 @@ running for this pilot. Loss of that connection blocks signing and marks worker
 health unavailable; it never switches to another network. A direct host link or
 restricted RPC gateway is needed before removing that Mac dependency.
 
-Finney activation is a separate step after the hotkey swap, live-chain policy
-review, signing-path acceptance and an explicit production deployment. The new
+Finney activation requires live-chain policy review, signing-path acceptance
+and an explicit production deployment. The encrypted
 encrypted production hotkey remains off this test host.
