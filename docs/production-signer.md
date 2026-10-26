@@ -18,8 +18,8 @@ may be writable by other users, and symlinks are refused. Policy fields are:
   "network": "finney",
   "expected_genesis": "0x2f0555cc76fc2840a25a6ea3b9637146806f1f44b090c175ffde2a7e5ab36c03",
   "netuid": null,
-  "runtime_spec": 484,
-  "runtime_source_commit": "5749dbfbe4a78ccd3938d46ffae45e059488feb7",
+  "runtime_spec": 486,
+  "runtime_source_commit": "72323e13249c9e25c7e792a2b3c08502c84651d5",
   "version_key": 0,
   "keyfile": "/var/lib/dani-signer/keys/finney-validator",
   "refresh_blocks": 200
@@ -69,7 +69,7 @@ valid reveal can resume without guessing or changing its salt.
 ## Commit/reveal
 
 This release implements the manual `commit_weights` / `reveal_weights` protocol
-supported by reviewed runtimes 482 and 484. It uses `SubnetEpochIndex` and
+supported by reviewed runtimes 482, 484 and 486. It uses `SubnetEpochIndex` and
 `RevealPeriodEpochs`, rather than inferring epochs from block modulo. These calls
 remain separate from the Drand timelocked protocol whose global version is 4.
 No timelock-ciphertext compatibility or automatic fallback is claimed here.

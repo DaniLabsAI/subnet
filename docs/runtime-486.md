@@ -20,3 +20,9 @@ The signer accepts runtime 486 only with its exact source commit in the separate
 operator policy. Adding this review does not enable Finney or replace any hotkey.
 Run the official WASM on localnet and verify finalized commit/reveal and full
 miner-incentive burn before activating the corresponding production policy.
+
+On October 26, the downloaded WASM matched the finalized Finney code hash. All
+38 unit tests passed on macOS and the Arm validator host. The private chain then
+verified automatic recovery after a signer crash, a finalized reveal, and full
+miner-incentive burn in a subsequent runtime-486 epoch. Its existing chain history
+was preserved. These checks submitted no Finney transactions.
