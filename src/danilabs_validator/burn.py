@@ -72,7 +72,7 @@ def preflight(snapshot, settings, previous=None, policy=None):
 
 
 class BurnSigner:
-    def __init__(self, settings: Settings, state_file: str, substrate=None, *, policy=None, keys=None):
+    def __init__(self, settings: Settings, state_file: str, substrate=None, *, policy=None, keys=None, inhibit=None):
         settings.validate()
         if policy is None:
             if settings.network != 'localnet':
@@ -82,22 +82,35 @@ class BurnSigner:
         self.settings = settings
         self.policy = policy
         self.keys = keys or EncryptedHotkey(policy.keyfile, settings.validator_hotkey)
+        self.inhibit = inhibit
         self.chain = FinalizedChain(settings, substrate)
         self.state_file = state_file
         self.state = load_state(state_file) or {}
         self.previous = self.state.get("snapshot")
 
     def key_status(self):
+        paused = bool(self.inhibit and self.inhibit.active())
+        if paused:
+            self.keys.lock()
         return {'key_locked': not self.keys.is_unlocked, 'signing_enabled':self.policy.enabled,
-                'network':self.settings.network, 'public_hotkey':self.settings.validator_hotkey}
+                'network':self.settings.network, 'public_hotkey':self.settings.validator_hotkey,
+                'emergency_locked':paused,
+                'emergency_lock_file':str(self.inhibit.path) if self.inhibit else None}
+
+    def check_inhibit(self):
+        if self.inhibit and self.inhibit.active():
+            self.keys.lock()
+            raise BurnBlocked('Emergency lock is active')
 
     def unlock(self, password):
         # Verify chain identity and operator policy before decrypting a key.
         if not self.policy.enabled:
             raise BurnBlocked('Signing is disabled by operator policy')
+        self.check_inhibit()
         snapshot = self.chain.snapshot()
         preflight(snapshot, self.settings, self.previous, self.policy)
         self.keys.unlock(password)
+        self.check_inhibit()
         self.persist(snapshot)
 
     def lock(self):
@@ -111,6 +124,7 @@ class BurnSigner:
     def submit(self, function, params, snapshot):
         if not self.policy.enabled:
             raise BurnBlocked('Signing is disabled by operator policy')
+        self.check_inhibit()
         # Recheck finalized identity and runtime immediately before each signature.
         fresh = self.chain.snapshot()
         preflight(fresh, self.settings, snapshot, self.policy)
@@ -141,6 +155,7 @@ class BurnSigner:
         if isinstance(nonce,str):nonce=int(nonce,16)
         if type(nonce) is not int or nonce < 0:
             raise BurnBlocked('Pending account nonce is unavailable')
+        self.check_inhibit()
         keypair = self.keys.signing_key()
         if keypair.ss58_address != self.settings.validator_hotkey:
             raise BurnBlocked("Unlocked key differs from the configured identity")
@@ -159,6 +174,8 @@ class BurnSigner:
     def maintain(self):
         if not self.policy.enabled:
             return {'status':'disabled', **self.key_status()}
+        if self.inhibit and self.inhibit.active():
+            return {'status':'emergency_locked', **self.key_status()}
         snapshot = self.chain.snapshot()
         report = preflight(snapshot, self.settings, self.previous, self.policy)
         self.persist(snapshot)

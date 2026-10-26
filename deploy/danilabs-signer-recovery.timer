@@ -1,0 +1,11 @@
+[Unit]
+Description=Retry DaniLabs signer recovery without cached unlock secrets
+
+[Timer]
+OnBootSec=15
+OnUnitInactiveSec=10
+AccuracySec=1
+Unit=danilabs-signer-recovery.service
+
+[Install]
+WantedBy=timers.target

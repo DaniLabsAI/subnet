@@ -16,6 +16,7 @@ import datetime as dt
 from .burn import BurnBlocked, BurnSigner
 from .config import load_settings
 from .custody import CustodyError, load_policy
+from .recovery_guard import Inhibit
 
 
 def control(signer, request, peer_uid, worker_uid, operation_lock):
@@ -43,11 +44,13 @@ def main():
     parser.add_argument("--policy", required=True)
     parser.add_argument("--socket", required=True)
     parser.add_argument("--state", required=True)
+    parser.add_argument("--recovery-inhibit")
     args = parser.parse_args()
     os.umask(0o077)
     settings = load_settings(args.config)
     policy = load_policy(args.policy, settings, settings_path=args.config)
-    signer = BurnSigner(settings, args.state, policy=policy)
+    signer = BurnSigner(settings, args.state, policy=policy,
+                        inhibit=Inhibit(args.recovery_inhibit) if args.recovery_inhibit else None)
     allowed_uid = pwd.getpwnam("dani-validator").pw_uid
     latest = {"status": "starting"}
     lock = threading.Lock()
@@ -86,6 +89,7 @@ def main():
                         result = dict(latest)
                     result.update(signer.key_status())
                     if not signer.policy.enabled:result['status']='disabled'
+                    elif result.get('emergency_locked'):result['status']='emergency_locked'
                     elif not signer.keys.is_unlocked:result['status']='locked'
                 if public_status and result.get('updated_at'):
                     age = (dt.datetime.now(dt.timezone.utc) - dt.datetime.fromisoformat(result['updated_at'])).total_seconds()

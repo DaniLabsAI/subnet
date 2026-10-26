@@ -1,0 +1,28 @@
+[Unit]
+Description=DaniLabs OCI-backed automatic signer recovery
+Wants=network-online.target
+Requires=danilabs-instance-metadata-guard.service
+After=network-online.target danilabs-instance-metadata-guard.service danilabs-localnet-signer.service
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+ExecStart=/usr/local/sbin/danilabs-signer-recovery --config /etc/danilabs/signer-recovery.json
+TimeoutStartSec=60
+RuntimeDirectory=danilabs-recovery
+RuntimeDirectoryMode=0700
+RuntimeDirectoryPreserve=yes
+UMask=0077
+LimitCORE=0
+MemoryMax=512M
+MemorySwapMax=0
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/run/danilabs-recovery
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+CapabilityBoundingSet=CAP_DAC_OVERRIDE CAP_DAC_READ_SEARCH
+Environment=PYTHONDONTWRITEBYTECODE=1
+Environment=OCI_METADATA_BASE_URL=http://169.254.169.254/opc/v2
