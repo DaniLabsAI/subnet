@@ -39,10 +39,11 @@ burn pilot**. The pilot runs an isolated signer, a PM2 worker, and a staged work
 updater with health checks and rollback. It targets the subnet owner's registered
 UID and verifies the resulting weight row and miner-burn settlement separately.
 
-Transaction signing is currently restricted to a pinned development chain and a
-known development key. Finney remains read-only. Miner scoring and production
-weight submission are still pending.
+The signer now supports encrypted hotkey custody and an explicit operator policy.
+The deployed pilot uses a development key on localnet; Finney signing is disabled.
+Miner scoring and production activation are still pending.
 
 See the [observer guide](docs/operator-pilot.md) for chain monitoring and the
 [localnet guide](docs/localnet-validator.md) for burn testing, PM2 controls and
-updates.
+updates. The [signer guide](docs/production-signer.md) covers key custody and
+production activation requirements.

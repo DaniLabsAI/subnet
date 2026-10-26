@@ -1,8 +1,9 @@
 # Localnet validator pilot
 
 This pilot tests validator operation before production deployment. It signs
-only on the pinned private development chain, using the publicly known `//Bob`
-development identity. It cannot load the new production hotkey or write to Finney.
+on the pinned private development chain, using an encrypted keyfile for the
+publicly known `//Bob` development identity. Finney signing remains disabled and
+no production hotkey is installed.
 
 ## Processes
 
@@ -28,7 +29,7 @@ The localnet genesis is:
 0xea6ec824e61841ae3324cee5de0a98d27d4b83a9c423119aa6addf531b024de4
 ```
 
-The writer is restricted to runtime 482 and weight version 0. It checks owner
+The deployed signing policy pins runtime 484 and weight version 11003. It checks owner
 hotkey/coldkey association, both UID mappings and registration blocks, validator
 permit and effective stake, weight limits, burn mode, mechanism count and
 finalized-state continuity. An unknown runtime or changed identity stops signing.
@@ -36,7 +37,8 @@ finalized-state continuity. An unknown runtime or changed identity stops signing
 The test subnet keeps commit/reveal enabled. The pilot uses the runtime's manual
 commit/reveal calls and persists its salt and commitment before broadcast. It
 reads the runtime's epoch counter to reveal within the permitted epoch. Restarting
-the signer resumes the same saved commitment. Plain weights are also supported
+the signer starts locked and retains the same saved commitment. Unlock it
+again to resume a valid reveal. Plain weights are also supported
 when explicitly selected and matched to a chain with commit/reveal disabled.
 This does not claim acceptance of the Drand timelock path on Finney.
 
@@ -73,6 +75,8 @@ Stopping the PM2 worker **does not stop burn maintenance**. To stop signing:
 ```sh
 sudo systemctl stop danilabs-localnet-signer
 sudo systemctl start danilabs-localnet-signer
+sudo danilabs-signerctl status
+sudo danilabs-signerctl unlock
 sudo journalctl -u danilabs-localnet-signer -f
 ```
 
@@ -80,7 +84,7 @@ PM2 lists are saved for both users. The `pm2-dani-validator` and
 `pm2-dani-deploy` systemd services restore them when those supervisors restart.
 
 The public worker state is `/var/lib/dani-validator/localnet-worker-state.json`.
-Signer recovery state is `/var/lib/dani-signer/localnet-state.json`. Localnet
+Signer recovery state is `/var/lib/dani-signer/localnet-production-path-state.json`. Localnet
 configuration is root-owned at `/etc/danilabs/localnet-validator.json`.
 
 ## Worker updates
@@ -104,12 +108,16 @@ installing a new base environment; worker updates cannot silently replace it.
 
 ## Network and production boundary
 
-The current private test RPC reaches the validator at `ws://127.0.0.1:19944`
-through SSH forwards on the operator's Mac. The Mac and forwards must remain
-running for this pilot. Loss of that connection blocks signing and marks worker
-health unavailable; it never switches to another network. A direct host link or
-restricted RPC gateway is needed before removing that Mac dependency.
+The validator reaches the chain directly through a dedicated, forwarding-only
+SSH connection. Its local endpoint is `ws://127.0.0.1:19945`, managed by
+`danilabs-localnet-rpc.service`. The chain RPC remains bound to loopback, and the
+machine key permits only the chain's RPC port. No Mac bridge is required.
 
-Finney activation requires live-chain policy review, signing-path acceptance
-and an explicit production deployment. The encrypted
-encrypted production hotkey remains off this test host.
+RPC interruption blocks new submissions and marks worker health unavailable.
+The connection restarts automatically and never switches to another network.
+A signer restart or host reboot starts locked and requires a custodian unlock;
+RPC reconnection alone does not discard the unlocked key.
+
+Finney activation requires finalized identity checks and an explicit production
+deployment. See [signer custody and activation](production-signer.md). The
+production key remains off the test host.
