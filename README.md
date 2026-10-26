@@ -28,21 +28,21 @@ for both performance and successful completion, so generation speed alone does
 not determine a miner's score.
 
 The scoring formula, eligibility requirements, and measurement definitions are
-still being developed. They will be documented and tested here before live
-weight submission is enabled. Validator reports should contain operational
+still being developed. They will be documented and tested here before miner
+scoring is enabled. Validator reports should contain operational
 measurements, without customer prompts or generated responses.
 
 ## Current status
 
-The validator includes a read-only finalized-chain observer and a **localnet
-burn pilot**. The pilot runs an isolated signer, a PM2 worker, and a staged worker
+The validator includes a finalized-chain observer and a **100% burn mode**.
+It runs an isolated signer, a PM2 worker, and a staged worker
 updater with health checks and rollback. It targets the subnet owner's registered
 UID and verifies the resulting weight row and miner-burn settlement separately.
 
 The signer supports encrypted hotkey custody, an explicit operator policy, and
 optional automatic recovery through OCI Secret Management.
-The deployed pilot uses a development key on localnet; Finney signing is disabled.
-Miner scoring and production activation are still pending.
+The production validator runs on Finney with 100% miner-incentive burn while
+miner scoring is developed. Changes are tested on localnet before deployment.
 
 See the [observer guide](docs/operator-pilot.md) for chain monitoring and the
 [localnet guide](docs/localnet-validator.md) for burn testing, PM2 controls and
