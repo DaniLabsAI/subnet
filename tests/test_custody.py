@@ -99,6 +99,25 @@ class CustodyTests(unittest.TestCase):
         self.assertEqual(control(signer,{'action':'unlock','password':'local test'},0,worker,lock)['status'],'unlocked')
         signer.unlock.assert_called_once_with('local test')
 
+    def test_runtime486_owner_validator_requires_the_exact_runtime_review(self):
+        settings,snapshot=test_burn.BurnTests().fixture()
+        owner=snapshot['owner']
+        settings=replace(settings,validator_hotkey=owner['hotkey'],
+            expected_validator_coldkey=owner['coldkey'],
+            expected_validator_registration_block=owner['registration_block'],
+            weight_submission_mode='legacy-commit-reveal')
+        snapshot['validator']={**owner,'validator_permit':True,'stake_weight_raw':1000,
+            'last_update':1,'weights_raw':[(owner['uid'],65535)]}
+        snapshot.update(runtime_spec_version=486,weights_version=11003,
+            commit_reveal_enabled=True,min_allowed_weights=64,max_weight_limit=1000)
+        policy=SignerPolicy(enabled=True,netuid=settings.netuid,runtime_spec=486,
+            runtime_source_commit=RUNTIME_REVIEWS[486],version_key=11003)
+        self.assertTrue(preflight(snapshot,settings,policy=policy)['burn_guard']['checks_passed'])
+        with self.assertRaises(BurnBlocked):
+            preflight({**snapshot,'runtime_spec_version':484},settings,policy=policy)
+        with self.assertRaises(CustodyError):
+            replace(policy,runtime_source_commit=RUNTIME_REVIEWS[484]).validate(settings)
+
     def test_arbitrary_call_and_wrong_burn_destination_never_get_a_private_key(self):
         settings,snapshot=test_burn.BurnTests().fixture()
         with tempfile.TemporaryDirectory() as root:
