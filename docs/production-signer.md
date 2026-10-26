@@ -53,15 +53,17 @@ sudo danilabs-signerctl unlock
 sudo danilabs-signerctl lock
 ```
 
-Unlock requires the custodian's own Terminal and hidden password prompt. It first
+Manual unlock requires the custodian's own Terminal and hidden password prompt. It first
 checks the live chain and signing policy. The daemon accepts unlock/lock only from
 root or its own OS user over a local Unix socket. The PM2 worker may read public
 status; the updater is denied access. There is no general-purpose signing API.
 
 Lock prevents new signatures and drops the key reference. Restart the daemon for
 a fresh locked process. Previously broadcast transactions may still finalize;
-saved weights remain on-chain. After a host reboot, services recover but signing
-requires a new manual unlock. Private state retains unfinished commitments so a
+saved weights remain on-chain. Without automatic recovery, a host reboot requires
+a new manual unlock. With [OCI recovery](automatic-recovery.md) configured, a
+root service retrieves the pinned secret and unlocks automatically. Private state
+retains unfinished commitments so a
 valid reveal can resume without guessing or changing its salt.
 
 ## Commit/reveal
@@ -88,3 +90,10 @@ and final epoch burn evidence. Keep the production key off that test host.
 
 Production activation is a separate operator step after final chain identity and
 policy review. It is not performed by publishing source or restarting the updater.
+
+## Automatic recovery
+
+The optional [OCI recovery service](automatic-recovery.md) removes the manual
+unlock step after ordinary reboots and signer crashes. Its persistent emergency
+lock overrides automatic recovery. The worker, updater and developer SSH login
+do not need a password or an OCI account for this mechanism.

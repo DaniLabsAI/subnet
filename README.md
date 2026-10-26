@@ -39,7 +39,8 @@ burn pilot**. The pilot runs an isolated signer, a PM2 worker, and a staged work
 updater with health checks and rollback. It targets the subnet owner's registered
 UID and verifies the resulting weight row and miner-burn settlement separately.
 
-The signer now supports encrypted hotkey custody and an explicit operator policy.
+The signer supports encrypted hotkey custody, an explicit operator policy, and
+optional automatic recovery through OCI Secret Management.
 The deployed pilot uses a development key on localnet; Finney signing is disabled.
 Miner scoring and production activation are still pending.
 

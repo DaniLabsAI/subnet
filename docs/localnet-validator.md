@@ -37,8 +37,8 @@ finalized-state continuity. An unknown runtime or changed identity stops signing
 The test subnet keeps commit/reveal enabled. The pilot uses the runtime's manual
 commit/reveal calls and persists its salt and commitment before broadcast. It
 reads the runtime's epoch counter to reveal within the permitted epoch. Restarting
-the signer starts locked and retains the same saved commitment. Unlock it
-again to resume a valid reveal. Plain weights are also supported
+the signer starts locked and retains the same saved commitment. When automatic
+recovery is configured, its root helper unlocks it to resume valid work. Plain weights are also supported
 when explicitly selected and matched to a chain with commit/reveal disabled.
 This does not claim acceptance of the Drand timelock path on Finney.
 
@@ -115,9 +115,14 @@ machine key permits only the chain's RPC port. No Mac bridge is required.
 
 RPC interruption blocks new submissions and marks worker health unavailable.
 The connection restarts automatically and never switches to another network.
-A signer restart or host reboot starts locked and requires a custodian unlock;
-RPC reconnection alone does not discard the unlocked key.
+A signer restart or host reboot starts locked. The configured OCI recovery
+helper unlocks it automatically unless emergency lock is active. RPC
+reconnection alone does not discard the unlocked key.
 
 Finney activation requires finalized identity checks and an explicit production
 deployment. See [signer custody and activation](production-signer.md). The
 production key remains off the test host.
+
+See [automatic recovery](automatic-recovery.md) for the root helper, cloud secret,
+outage behavior and persistent emergency lock. Developer SSH access is separate
+from wallet recovery.

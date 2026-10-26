@@ -1,0 +1,11 @@
+[Unit]
+Description=DaniLabs root-only OCI instance-identity metadata
+Before=pm2-dani-validator.service pm2-dani-deploy.service danilabs-localnet-signer.service danilabs-signer-recovery.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/danilabs-instance-metadata-guard
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
