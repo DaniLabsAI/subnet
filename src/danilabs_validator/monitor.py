@@ -27,7 +27,7 @@ def normalized_miner_burned(raw, spec_version, semantics):
 def registration_identity(registration):
     if not registration or not registration.get("registered"):
         return None
-    return [registration["hotkey"], registration["uid"], registration["registration_block"]]
+    return [registration["hotkey"], registration["uid"], registration["registration_block"], registration.get('coldkey')]
 
 
 def assess(snapshot: dict, settings: Settings, previous: dict | None = None, *, require_burn_row=True) -> dict:
@@ -50,6 +50,8 @@ def assess(snapshot: dict, settings: Settings, previous: dict | None = None, *, 
         reasons.append("Validator registration is unpinned or changed")
     if validator.get("validator_permit") is not True:
         reasons.append("Validator permit is absent or unavailable")
+    if settings.expected_validator_coldkey and validator.get('coldkey') != settings.expected_validator_coldkey:
+        reasons.append("Validator coldkey association differs from its configured pin")
     if snapshot.get("recycle_or_burn_raw") not in ({"Burn": ()}, {"Burn": []}, "Burn"):
         reasons.append("RecycleOrBurn is not verified as Burn")
     expected_commit_reveal = settings.weight_submission_mode == "legacy-commit-reveal"
@@ -117,4 +119,11 @@ def save_state(path: str, snapshot: dict) -> None:
         os.chmod(temporary, 0o600)
         json.dump(snapshot, stream, sort_keys=True)
         stream.write("\n")
+        stream.flush()
+        os.fsync(stream.fileno())
     temporary.replace(target)
+    directory = os.open(target.parent, os.O_RDONLY)
+    try:
+        os.fsync(directory)
+    finally:
+        os.close(directory)

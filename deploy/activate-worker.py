@@ -18,10 +18,15 @@ if release.is_symlink() or not release.is_dir():
 if json.loads((release/'.dani-tested.json').read_text()).get('commit') != sha:
     raise SystemExit('Candidate has not passed staged tests')
 config = json.loads(Path('/etc/danilabs/worker-launch.json').read_text())
-if config['network'] != 'localnet':
-    raise SystemExit('Only localnet worker activation has been reviewed')
+if config['network'] not in ('localnet','finney'):
+    raise SystemExit('Unsupported worker network')
+settings_file=config.get('settings_file','/etc/danilabs/localnet-validator.json')
+if settings_file not in ('/etc/danilabs/localnet-validator.json','/etc/danilabs/finney-validator.json'):
+    raise SystemExit('Unsupported worker configuration path')
+if json.loads(Path(settings_file).read_text())['network'] != config['network']:
+    raise SystemExit('Worker network does not match the root-owned launch configuration')
 ecosystem = {'apps':[{'name':'danilabs-validator','script':config['python'],
-    'args':['-m','danilabs_validator','--config','/etc/danilabs/localnet-validator.json',
+    'args':['-m','danilabs_validator','--config',settings_file,
             'burn-watch','--signer-socket','/run/danilabs-signer/burn.sock'],
     'cwd':str(release),'interpreter':'none','autorestart':True,'restart_delay':3000,
     'min_uptime':'10s','max_restarts':15,'max_memory_restart':'1G',

@@ -25,8 +25,7 @@ def request_burn(path):
 
 
 def run(settings, socket_path, count=0):
-    if settings.network != 'localnet':
-        raise ValueError('The burn worker is restricted to localnet acceptance')
+    settings.validate()
     chain = FinalizedChain(settings)
     saved = load_state(settings.state_file) or {}
     previous = saved.get('snapshot')

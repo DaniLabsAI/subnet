@@ -5,13 +5,15 @@ import json
 import sys
 
 from .monitor import load_state
+from .config import FINNEY_GENESIS, LOCALNET_GENESIS
 
 
 def healthy(state, release, max_age=90):
     try:
         age = (dt.datetime.now(dt.timezone.utc) - dt.datetime.fromisoformat(state['heartbeat_at'])).total_seconds()
         return bool(state['release_commit'] == release and state['status'] == 'healthy'
-                and state['network'] == 'localnet' and 0 <= age < max_age
+                and state['network'] in ('localnet','finney') and 0 <= age < max_age
+                and state['snapshot']['genesis'] == {'localnet':LOCALNET_GENESIS,'finney':FINNEY_GENESIS}[state['network']]
                 and state['burn_guard']['checks_passed'] is True
                 and state['snapshot']['source_hash'])
     except (KeyError, TypeError, ValueError):

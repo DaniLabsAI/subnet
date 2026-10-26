@@ -22,7 +22,7 @@ class BurnTests(unittest.TestCase):
 
     def fixture(self):
         settings = replace(SETTINGS, network='localnet', expected_genesis=LOCALNET_GENESIS,
-                           chain_endpoint='ws://127.0.0.1:19944')
+                           chain_endpoint='ws://127.0.0.1:19944',expected_validator_coldkey='validator-coldkey')
         fake = FakeSubstrate()
         fake.genesis = LOCALNET_GENESIS
         snapshot = FinalizedChain(settings, fake).snapshot()
@@ -35,8 +35,9 @@ class BurnTests(unittest.TestCase):
             BurnSigner(SETTINGS, '/path/never/opened')
         with self.assertRaises(ValueError):
             replace(SETTINGS, network='localnet').validate()
-        with self.assertRaises(ValueError):
-            replace(SETTINGS, weight_submission_mode='legacy-commit-reveal').validate()
+        # Observer configuration may describe Finney commit/reveal; it does not
+        # authorize a signer or unlock a key.
+        replace(SETTINGS, weight_submission_mode='legacy-commit-reveal').validate()
 
     def test_unsafe_runtime_or_identity_never_passes_signer_preflight(self):
         settings, snapshot = self.fixture()
@@ -62,7 +63,7 @@ class BurnTests(unittest.TestCase):
         self.assertFalse(result['burn_guard']['validator_row_100_percent_to_owner'])
         self.assertIsNone(result['last_epoch_100_percent_miner_burn_verified'])
         with tempfile.TemporaryDirectory() as folder:
-            signer = BurnSigner(settings, folder+'/signer.json')
+            signer = BurnSigner(settings, folder+'/signer.json',keys=Mock(is_unlocked=True))
             signer.chain.snapshot = lambda: snapshot
             signer.submit = Mock(return_value={'accepted':True})
             result = signer.maintain()
@@ -74,7 +75,7 @@ class BurnTests(unittest.TestCase):
         settings, snapshot = self.fixture()
         snapshot['validator']['last_update'] = 99
         with tempfile.TemporaryDirectory() as folder:
-            signer = BurnSigner(settings,folder+'/state.json')
+            signer = BurnSigner(settings,folder+'/state.json',keys=Mock(is_unlocked=True))
             signer.chain.snapshot=lambda:snapshot
             signer.submit=Mock()
             self.assertEqual(signer.maintain()['status'],'maintained')
@@ -88,7 +89,7 @@ class BurnTests(unittest.TestCase):
         snapshot['commit_reveal_enabled']=True
         snapshot['epoch_index']=4
         with tempfile.TemporaryDirectory() as folder:
-            signer=BurnSigner(settings,folder+'/state.json')
+            signer=BurnSigner(settings,folder+'/state.json',keys=Mock(is_unlocked=True))
             signer.chain.snapshot=lambda:snapshot
             signer.chain.substrate=Mock()
             digest='0x'+bytes(range(32)).hex()
@@ -96,9 +97,12 @@ class BurnTests(unittest.TestCase):
             signer.state['pending']={'identity':[73,'owner-hotkey',1,10,'validator-hotkey',20],
                 'commit_hash':digest,'salt':[1,2,3], 'prepared_block':80,'last_attempt_block':80}
             signer.persist(snapshot)
-            restarted=BurnSigner(settings,folder+'/state.json',signer.chain.substrate)
+            restarted=BurnSigner(settings,folder+'/state.json',signer.chain.substrate,keys=Mock(is_unlocked=False))
             restarted.chain.snapshot=lambda:snapshot
             restarted.submit=Mock(return_value={'finalized':True})
+            self.assertEqual(restarted.maintain()['status'],'locked')
+            restarted.submit.assert_not_called()
+            restarted.keys.is_unlocked=True
             self.assertEqual(restarted.maintain()['status'],'revealed')
             restarted.submit.assert_called_once_with('reveal_weights',{
                 'netuid':73,'uids':[1],'values':[65535],'salt':[1,2,3],'version_key':0},snapshot)
@@ -107,7 +111,7 @@ class BurnTests(unittest.TestCase):
     def test_new_release_cannot_pass_using_old_or_stale_heartbeat(self):
         state={'release_commit':'new','status':'healthy','network':'localnet',
                'heartbeat_at':datetime.now(timezone.utc).isoformat(),
-               'burn_guard':{'checks_passed':True},'snapshot':{'source_hash':'0xabc'}}
+               'burn_guard':{'checks_passed':True},'snapshot':{'source_hash':'0xabc','genesis':LOCALNET_GENESIS}}
         self.assertTrue(healthy(state,'new'))
         self.assertFalse(healthy(state,'old'))
         self.assertFalse(healthy({**state,'heartbeat_at':(datetime.now(timezone.utc)-timedelta(seconds=200)).isoformat()},'new'))

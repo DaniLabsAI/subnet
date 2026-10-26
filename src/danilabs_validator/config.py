@@ -21,6 +21,7 @@ class Settings:
     expected_owner_registration_block: int | None = None
     validator_hotkey: str | None = None
     expected_validator_registration_block: int | None = None
+    expected_validator_coldkey: str | None = None
     state_file: str = ".state/observer.json"
     poll_seconds: int = 60
     miner_burned_semantics: dict | None = None
@@ -41,15 +42,13 @@ class Settings:
             raise ValueError("network must be finney or localnet")
         if self.weight_submission_mode not in ("plain", "legacy-commit-reveal"):
             raise ValueError("Unsupported weight_submission_mode")
-        if self.weight_submission_mode != "plain" and self.network != "localnet":
-            raise ValueError("Legacy commit/reveal is restricted to localnet acceptance")
         if type(self.netuid) is not int or not 1 <= self.netuid <= 65535:
             raise ValueError("A non-root netuid must be explicitly configured")
         if type(self.poll_seconds) is not int or self.poll_seconds < 15:
             raise ValueError("poll_seconds must be an integer >= 15")
         if not isinstance(self.state_file, str) or not self.state_file.strip():
             raise ValueError("state_file must be a local filename")
-        for name in ("expected_owner_hotkey", "expected_owner_coldkey", "validator_hotkey"):
+        for name in ("expected_owner_hotkey", "expected_owner_coldkey", "validator_hotkey", "expected_validator_coldkey"):
             value = getattr(self, name)
             if value is not None and (not isinstance(value, str) or not value.strip()):
                 raise ValueError(f"{name} must be a public hotkey address or null")
