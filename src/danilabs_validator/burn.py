@@ -141,7 +141,7 @@ class BurnSigner:
                 'netuid':n, 'uids':[uid], 'values':[65535], 'salt':pending.get('salt'), 'version_key':version}
         elif function == 'commit_weights':
             pending = self.state.get('pending',{})
-            from bittensor.utils.weight_utils import generate_weight_hash
+            from .weights import generate_weight_hash
             expected_hash = generate_weight_hash(address=self.settings.validator_hotkey, netuid=n,
                 uids=[uid],values=[65535],salt=pending.get('salt',[]),version_key=version)
             allowed = (self.settings.weight_submission_mode == 'legacy-commit-reveal'
@@ -246,7 +246,7 @@ class BurnSigner:
                                       "weights": [65535], "version_key": self.policy.version_key}, snapshot)
             return {**common, "status": "submitted", "transaction": transaction}
 
-        from bittensor.utils.weight_utils import generate_weight_hash
+        from .weights import generate_weight_hash
         salt = [secrets.randbelow(65536) for _ in range(32)]
         commit_hash = generate_weight_hash(address=validator["hotkey"], netuid=n,
             uids=[owner["uid"]], values=[65535], salt=salt, version_key=self.policy.version_key)

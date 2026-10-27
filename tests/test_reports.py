@@ -50,6 +50,9 @@ class ReportTests(unittest.TestCase):
     def test_signed_data_scores_and_weights_sum_to_65535(self):
         result=score(validated(),IDENTITY)
         self.assertEqual(result['candidate_weights'],[[58,65535]])
+        self.assertFalse(result['reward_eligible'])
+        self.assertEqual(result['measurement_trust']['token_counts'], 'miner_reported')
+        self.assertEqual(result['production_weight_gate'], 'independent_token_and_correctness_verification_required')
         self.assertEqual(result['component_weights'],{'tps':.5,'ttft':.35,'reliability':.1,'ping':.05})
         self.assertFalse(result['weights_submitted']);self.assertFalse(result['chain_writes'])
 
@@ -83,6 +86,15 @@ class ReportTests(unittest.TestCase):
         result=score(d,IDENTITY|{'other':{'uid':59,'registration_block':100}})
         self.assertEqual(sum(w for _,w in result['candidate_weights']),65535)
         self.assertGreater(dict(result['candidate_weights'])[59],dict(result['candidate_weights'])[58])
+
+    def test_fast_cherry_picker_does_not_outscore_reliable_work(self):
+        d=validated();other=deepcopy(d['miners'][0]);other.update(hotkey='other',uid=59,failed_requests=495)
+        other['models'][0].update(decode_tps_milli=900000,p50_ttft_ms=1)
+        d['miners'].append(other)
+        result=score(d,IDENTITY|{'other':{'uid':59,'registration_block':100}})
+        weights=dict(result['candidate_weights'])
+        self.assertGreater(weights[58],weights[59])
+        self.assertFalse(result['reward_eligible'])
 
     def test_unknown_ping_is_not_invented_zero_latency(self):
         d=validated();d['miners'][0].update(ping_samples=0,p50_gateway_rtt_us=None,p95_gateway_rtt_us=None)

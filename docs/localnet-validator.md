@@ -102,9 +102,10 @@ Fetch failures leave the current worker running. An interrupted activation is
 recovered from the updater's saved pending/accepted state. Signer upgrades require
 a separate reviewed deployment; the updater never restarts it.
 
-The base SDK environment is pinned to `bittensor==9.12.2` and
-`async-substrate-interface==1.6.4`. Changing dependencies requires reviewing and
-installing a new base environment; worker updates cannot silently replace it.
+The runtime uses the narrow `async-substrate-interface` chain client and
+`bittensor-wallet`, without the full SDK's HTTP framework dependency tree.
+`requirements.lock` pins transitive versions and hashes. Changing dependencies
+requires a reviewed base environment; worker updates cannot silently replace it.
 
 ## Network and production boundary
 

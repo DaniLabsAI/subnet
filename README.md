@@ -33,6 +33,11 @@ The current policy weights TPS at 50%, TTFT at 35%, completion reliability at
 10%, and gateway-to-miner RTT at 5%. Reports exclude customer prompts and
 responses. See [report setup and scoring](docs/validator-reports.md).
 
+Performance reports are not execution proofs. Gateway timing is observed by the
+gateway, while token usage is still miner-reported. Candidate scores remain
+explicitly ineligible for miner rewards pending independent token and correctness
+verification. Current live signing remains constrained to **100% burn**.
+
 ## Current status
 
 The validator includes a finalized-chain observer and a **100% burn mode**.

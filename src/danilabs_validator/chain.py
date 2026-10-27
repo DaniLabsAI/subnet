@@ -1,7 +1,6 @@
 """Read every snapshot at a single finalized block. No wallet or extrinsic API."""
 from __future__ import annotations
 
-import argparse
 from datetime import datetime, timezone
 from typing import Any
 
@@ -22,12 +21,11 @@ def unsigned_newtype(raw):
     return candidate if type(candidate) is int and candidate >= 0 else None
 
 
-def create_subtensor(endpoint: str):
-    import bittensor as bt
-    parser = argparse.ArgumentParser(add_help=False)
-    bt.Subtensor.add_args(parser)
-    config = bt.Config(parser=parser, args=["--subtensor.chain_endpoint", endpoint])
-    return bt.Subtensor(network=endpoint, config=config)
+def create_substrate(endpoint: str):
+    from async_substrate_interface.sync_substrate import SubstrateInterface
+    return SubstrateInterface(url=endpoint, ss58_format=42,
+        type_registry={"types": {"Balance": "u64"}},
+        use_remote_preset=True, chain_name="Bittensor")
 
 
 class FinalizedChain:
@@ -39,7 +37,7 @@ class FinalizedChain:
     def snapshot(self) -> dict:
         try:
             if self.substrate is None:
-                self.substrate = create_subtensor(self.settings.chain_endpoint).substrate
+                self.substrate = create_substrate(self.settings.chain_endpoint)
             s = self.substrate
             genesis = s.get_block_hash(0)
             if genesis != self.settings.expected_genesis:

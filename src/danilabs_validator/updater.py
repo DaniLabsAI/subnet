@@ -22,7 +22,7 @@ import tomllib
 from .health import healthy
 from .monitor import load_state, save_state
 
-DEPENDENCIES = ['bittensor==9.12.2', 'async-substrate-interface==1.6.4']
+DEPENDENCIES = ['async-substrate-interface==1.6.4', 'bittensor-wallet==4.1.1', 'certifi==2026.10.23', 'aiohttp==3.14.5']
 
 
 class UpdateRejected(RuntimeError):

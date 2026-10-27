@@ -23,7 +23,7 @@ from .chain import value
 
 SCHEMA='danilabs.validator-report.v2'
 METRICS='gateway-terminal-v1'
-POLICY_VERSION='performance-v2-tps50-ttft35-reliability10-ping5'
+POLICY_VERSION='performance-v3-reliability-gated-tps50-ttft35-reliability10-ping5'
 MODEL_POLICY={'openai/gpt-oss-20b':{'tps':300,'ttft_ms':500,'budget':1}}
 COMPONENT_WEIGHTS={'tps':.50,'ttft':.35,'reliability':.10,'ping':.05}
 MAX_BYTES=2*1024*1024
@@ -155,7 +155,7 @@ def score(report,identities):
             if target is None:continue
             components={'tps':tps/(tps+target['tps']),'ttft':target['ttft_ms']/(target['ttft_ms']+ttft),
                         'reliability':reliability,'ping':ping_factor}
-            raw=sum(COMPONENT_WEIGHTS[k]*components[k] for k in COMPONENT_WEIGHTS)
+            raw=reliability*sum(COMPONENT_WEIGHTS[k]*components[k] for k in COMPONENT_WEIGHTS)
             part={'model_id':model_id,'workload':bucket,'samples':n,'output_tokens':tokens,
                   'decode_tps':tps,'ttft_ms':ttft,'components':components,'raw_score':raw}
             parts.append(part)
@@ -184,7 +184,9 @@ def score(report,identities):
         'chain_writes':False,'weights_submitted':False,'mode':'score_only_burn_100',
         'report_id':report['report_id'],'report_sha256':report['report_sha256'],'window_end':report['window_end'],
         'epoch_index':report['epoch']['index'],'epoch_end_block':report['epoch']['end_block'],
-        'next_update_estimate':report['next_update_estimate'],'quality_verification':'not_provided_by_performance_metrics'}
+        'next_update_estimate':report['next_update_estimate'],'quality_verification':'not_provided_by_performance_metrics',
+        'reward_eligible':False,'production_weight_gate':'independent_token_and_correctness_verification_required',
+        'measurement_trust':{'timing':'gateway_observed','token_counts':'miner_reported','execution':'unattested'}}
 
 
 def weight_preview(result,chain,snapshot,settings):
@@ -204,7 +206,7 @@ def weight_preview(result,chain,snapshot,settings):
     if type(version) is not int:reasons.append('Weight version is unavailable')
     if not reasons:
         if settings.weight_submission_mode=='legacy-commit-reveal':
-            from bittensor.utils.weight_utils import generate_weight_hash
+            from .weights import generate_weight_hash
             # This public all-zero salt is used only for an unsigned encoding test.
             salt=[0]*32
             commitment=generate_weight_hash(address=settings.validator_hotkey,netuid=settings.netuid,
