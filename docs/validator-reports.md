@@ -25,8 +25,12 @@ python -m danilabs_validator --config /etc/danilabs/finney-validator.json \
   score --reports-config /etc/danilabs/validator-reports.json
 ```
 
-The PM2 `burn-watch` worker loads that report configuration and polls every
-60 seconds. It logs `report_scoring` alongside its existing burn evidence.
+The PM2 `burn-watch` worker observes finalized chain state every 60 seconds. It
+fetches and scores a report once per completed chain epoch, then reuses that
+verified snapshot and score until the chain advances. It still rechecks current
+UID registration each cycle so a recycled UID cannot inherit an old score.
+`poll_seconds` controls retry spacing during a report outage, not report cadence.
+It logs `report_scoring` alongside its existing burn evidence.
 Endpoint/signature failures log unavailable candidate weights and leave the
 fixed burn worker running. Existing operators must install the reports
 configuration; a Git pull does not create their local configuration or signers.
@@ -55,11 +59,37 @@ eligible work exists; an empty window produces an empty candidate vector.
 
 ## Measurements and trust
 
-Reports cover the preceding 24 hours of terminal accounting received, using a
-half-open UTC window. A new immutable snapshot is published per minute with a
-30-second closing grace. Every validator can retrieve the exact snapshot at
-`/v1/validator/reports/{report_id}`. Reports contain aggregate operational metrics,
-without customer account IDs, API keys, prompts, responses or device credentials.
+The endpoint is public: miners and validators read the same signed bytes without
+an account or API key. `/latest` is the last completed finalized subnet epoch,
+currently 360 blocks (roughly 72 minutes). It excludes the in-progress epoch.
+The half-open timestamp window follows actual chain epoch boundaries, so a fixed
+wall-clock cron does not drift relative to the subnet. The validator independently
+checks epoch index, boundary hashes/timestamps and tempo against finalized RPC.
+Allow roughly 30–60 seconds for accounting grace and publication after finality.
+
+History is available to everyone:
+
+```
+https://api.danilabs.ai/v1/validator/reports/latest?offset=1
+https://api.danilabs.ai/v1/validator/reports/latest?offset=2
+https://api.danilabs.ai/v1/validator/reports/sn2-v2-<epoch-end-block>
+```
+
+The publisher saves each report once as signed JSON files. Latest is served from
+memory and supports ETag revalidation; historical reports are read from disk and
+are not cached. HTTP never queries the accounting DB. Files are retained for 30
+days. Miners can inspect old reports; automated scoring only accepts the latest
+completed epoch and never falls back to an old report after an outage. Reports
+contain no customer account IDs, API keys, prompts, responses or device credentials.
+
+The logged `submission_preview` checks minimum count, normalized maximum weight,
+validator permit/stake and current rate-limit readiness. When candidate limits
+pass it encodes the runtime's unsigned `set_weights`, or both `commit_weights`
+and `reveal_weights`, and logs their byte lengths and hashes. This never creates
+a signed extrinsic or submits one. An encoding test is not a successful chain
+transaction: reveal timing, fees, future runtime state and explicit policy still
+apply. Commit/reveal delays also mean a one-epoch report lag is not a guarantee
+of a one-epoch payout lag.
 
 TPS is a gateway-observed decode estimate:
 `(output_tokens - 1) * 1000 / (duration_ms - ttft_ms)`. The JSON stores TPS in
