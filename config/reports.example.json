@@ -1,0 +1,5 @@
+{
+  "url": "https://api.danilabs.ai/v1/validator/reports/latest",
+  "public_key_hex": "dc933b260f8fbf03ea39a33bddb4f945650b896890fec6e74f2d5efc8ce90f28",
+  "poll_seconds": 60
+}

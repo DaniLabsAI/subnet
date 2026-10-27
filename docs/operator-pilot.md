@@ -42,7 +42,6 @@ is no default subnet identifier. The local configuration is ignored by Git.
 
 ```sh
 .venv/bin/dani-validator --config config/observer.local.json status
-.venv/bin/dani-validator --config config/observer.local.json shadow
 .venv/bin/dani-validator --config config/observer.local.json watch --count 3
 ```
 
@@ -62,10 +61,10 @@ the current owner UID, validator UID, permit, raw stake fields, weight row and
 source block/hash. `stake_weight_raw` is the chain's normalized u16 consensus
 weight, not a TAO balance; the separately named raw stake fields remain raw.
 
-`shadow` currently reports `pending_authenticated_reports` and emits no scores.
-There is no signed validator-report contract or approved scoring formula yet.
-An account token, miner telemetry or local JSON file is not accepted as trusted
-reward evidence. This is an executable observer, not a completed validator.
+The [signed-report scorer](validator-reports.md) fetches the service endpoint,
+verifies its signature and finalized miner identities, and logs candidate scores
+and weights. It has no file-input or SSH data path. The burn signer continues
+its fixed 100% burn policy while candidate scoring is evaluated.
 
 ## Reading the burn evidence
 

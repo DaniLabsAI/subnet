@@ -93,7 +93,7 @@ def assess(snapshot: dict, settings: Settings, previous: dict | None = None, *, 
     observed_full = None if fraction is None or not epoch_valid or not epoch_burn or reasons or row_burn is not True else fraction == "1"
     return {
         **snapshot,
-        "observer": {"chain_writes": False, "wallet_loaded": False, "scoring": "pending_authenticated_reports"},
+        "observer": {"chain_writes": False, "wallet_loaded": False, "scoring": "use_signed_report_client"},
         "burn_guard": {"checks_passed": not reasons, "blocked_reasons": reasons, "validator_row_100_percent_to_owner": row_burn},
         "miner_burned": {"fraction": fraction, "raw": snapshot.get("miner_burned_raw"), "settlement_evidence": evidence or None, "semantics": "Latest epoch miner incentive withheld from owner-associated hotkeys; includes burn and recycle", "encoding_review": settings.miner_burned_semantics, "source": BURN_SOURCE},
         "last_epoch_100_percent_miner_burn_verified": observed_full,

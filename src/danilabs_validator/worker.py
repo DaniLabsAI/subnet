@@ -24,12 +24,13 @@ def request_burn(path):
         return json.loads(raw)
 
 
-def run(settings, socket_path, count=0):
+def run(settings, socket_path, count=0, reports_config='/etc/danilabs/validator-reports.json'):
     settings.validate()
     chain = FinalizedChain(settings)
     saved = load_state(settings.state_file) or {}
     previous = saved.get('snapshot')
     i = 0
+    report_client=None
     while True:
         result = {'worker_pid': os.getpid(), 'release_commit': os.environ.get('DANI_RELEASE_SHA', 'development'),
                   'network': settings.network}
@@ -42,6 +43,14 @@ def run(settings, socket_path, count=0):
                           and signer.get('status') in ('maintained','submitted','committed','revealed','pending','rate_limited') else 'waiting',
                           snapshot=snapshot, burn_guard=report['burn_guard'], signer=signer,
                           last_epoch_100_percent_miner_burn_verified=report['last_epoch_100_percent_miner_burn_verified'])
+            try:
+                from .reports import ReportClient, ReportSettings
+                if report_client is None:
+                    report_client=ReportClient(ReportSettings.load(reports_config,settings.network),settings)
+                result['report_scoring']=report_client.poll(chain,snapshot)
+            except Exception as exc:
+                result['report_scoring']={'status':'unavailable','error_type':type(exc).__name__,
+                    'candidate_weights':None,'weights_submitted':False,'burn_policy_unchanged':True}
             previous = snapshot
         except Exception as exc:
             result.update(status='unavailable', error_type=type(exc).__name__)

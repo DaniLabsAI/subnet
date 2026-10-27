@@ -27,10 +27,11 @@ The goal is to reward useful, fast, reliable inference. Scoring needs to account
 for both performance and successful completion, so generation speed alone does
 not determine a miner's score.
 
-The scoring formula, eligibility requirements, and measurement definitions are
-still being developed. They will be documented and tested here before miner
-scoring is enabled. Validator reports should contain operational
-measurements, without customer prompts or generated responses.
+Validators fetch signed aggregate reports over HTTPS, verify registered miner
+identities against finalized chain state, and calculate candidate weights.
+The current policy weights TPS at 50%, TTFT at 35%, completion reliability at
+10%, and gateway-to-miner RTT at 5%. Reports exclude customer prompts and
+responses. See [report setup and scoring](docs/validator-reports.md).
 
 ## Current status
 
@@ -41,8 +42,9 @@ UID and verifies the resulting weight row and miner-burn settlement separately.
 
 The signer supports encrypted hotkey custody, an explicit operator policy, and
 optional automatic recovery through OCI Secret Management.
-The production validator runs on Finney with 100% miner-incentive burn while
-miner scoring is developed. Changes are tested on localnet before deployment.
+The production validator runs on Finney with 100% miner-incentive burn. Miner
+scores and candidate weights are logged without changing the burn signer.
+Changes are tested on localnet before deployment.
 
 See the [observer guide](docs/operator-pilot.md) for chain monitoring and the
 [localnet guide](docs/localnet-validator.md) for burn testing, PM2 controls and
