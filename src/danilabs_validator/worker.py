@@ -61,5 +61,6 @@ def run(settings, socket_path, count=0, reports_config='/etc/danilabs/validator-
         print(json.dumps(result, sort_keys=True), flush=True)
         i += 1
         if count and i >= count:
+            chain.close()
             return 0
         time.sleep(settings.poll_seconds)

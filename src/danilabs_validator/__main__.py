@@ -25,6 +25,7 @@ def main(argv=None) -> int:
     args = parser.parse_args(argv)
     if args.command in ("watch", "burn-watch") and args.count < 0:
         parser.error("--count must be non-negative")
+    chain = None
     try:
         settings = load_settings(args.config)
         if args.command == "score":
@@ -60,6 +61,9 @@ def main(argv=None) -> int:
         return 2
     except KeyboardInterrupt:
         return 0
+    finally:
+        if chain is not None:
+            chain.close()
 
 
 if __name__ == "__main__":

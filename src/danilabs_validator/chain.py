@@ -34,6 +34,14 @@ class FinalizedChain:
         self.settings.validate()
         self.substrate = substrate
 
+    def close(self):
+        client, self.substrate = self.substrate, None
+        if client is not None:
+            try:
+                client.close()
+            except Exception:
+                pass
+
     def snapshot(self) -> dict:
         try:
             if self.substrate is None:
@@ -151,5 +159,5 @@ class FinalizedChain:
         except ChainUnavailable:
             raise
         except Exception as exc:
-            self.substrate = None
+            self.close()
             raise ChainUnavailable("Finalized chain snapshot unavailable") from exc
