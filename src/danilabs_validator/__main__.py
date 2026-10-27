@@ -38,7 +38,9 @@ def main(argv=None) -> int:
             from .worker import run
             return run(settings, args.signer_socket, args.count, args.reports_config)
         chain = FinalizedChain(settings)
-        previous = load_state(settings.state_file)
+        # Status is a fresh, read-only snapshot. Only the observer watch command
+        # owns the flat observer state format; the burn worker stores an envelope.
+        previous = load_state(settings.state_file) if args.command == "watch" else None
         count = 0
         while True:
             try:
