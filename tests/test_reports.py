@@ -1,5 +1,6 @@
 from copy import deepcopy
 from dataclasses import replace
+from datetime import datetime, timezone
 import base64
 import hashlib
 import json
@@ -12,6 +13,7 @@ from unittest.mock import Mock,patch
 from bittensor_wallet import Keypair
 
 from danilabs_validator.config import Settings,FINNEY_GENESIS
+from danilabs_validator.health import healthy
 from danilabs_validator.reports import verify,score,ReportError,ReportSettings,ReportClient,SCHEMA,METRICS,weight_preview
 from danilabs_validator.worker import run
 
@@ -250,3 +252,24 @@ class ReportTests(unittest.TestCase):
             state=json.loads(Path(settings.state_file).read_text())
             self.assertEqual(state['status'],'healthy');self.assertEqual(state['report_scoring']['status'],'unavailable')
             self.assertIsNone(state['report_scoring']['candidate_weights'])
+
+    def test_score_worker_health_requires_fresh_matching_report_without_signer(self):
+        snapshot={'genesis':FINNEY_GENESIS,'netuid':2,'source_hash':'hash','last_epoch_block':1}
+        verified={'status':'ready','report_id':'report-1','epoch_end_block':1,'weights_submitted':False}
+        with tempfile.TemporaryDirectory() as root:
+            settings=replace(SETTINGS,state_file=str(Path(root)/'worker.json'))
+            with patch('danilabs_validator.worker.FinalizedChain') as chain, \
+                    patch('danilabs_validator.worker.request_burn') as burn, \
+                    patch('danilabs_validator.reports.ReportSettings.load'), \
+                    patch('danilabs_validator.reports.ReportClient') as client:
+                chain.return_value.snapshot.return_value=snapshot
+                client.return_value.poll.return_value=verified
+                since=datetime.now(timezone.utc)
+                self.assertEqual(run(settings,None,count=1),0)
+                burn.assert_not_called()
+            state=json.loads(Path(settings.state_file).read_text())
+            self.assertTrue(healthy(state,'development',mode='score',since=since))
+            self.assertFalse(healthy(state,'development',mode='score',since=datetime.now(timezone.utc)))
+            self.assertFalse(healthy(state,'development'))
+            state['report_scoring']['epoch_end_block']=0
+            self.assertFalse(healthy(state,'development',mode='score'))

@@ -1,5 +1,22 @@
 # Managed validator worker updates
 
+## Operator installations
+
+The [operator installer](validator-onboarding.md) enables
+`danilabs-sn2-update.timer`, which checks `main` every five minutes. It stages
+and tests the commit, then restarts the dedicated scoring worker and waits for
+that commit to verify the latest finalized SN2 report. A failed release is
+quarantined after the last healthy release is restored. Interrupted rollbacks
+are retried before another candidate can start. Changes to the dependency lock
+require an operator-reviewed environment update.
+
+```sh
+sudo systemctl list-timers danilabs-sn2-update.timer
+sudo journalctl -u danilabs-sn2-update.service -n 30 --no-pager
+```
+
+## DaniLabs production host
+
 The DaniLabs host checks its configured upstream branch every five minutes
 with [the cron entry](../deploy/danilabs-validator-updater.cron). It tracks
 `main` on `https://github.com/DaniLabsAI/subnet.git`. An installation using

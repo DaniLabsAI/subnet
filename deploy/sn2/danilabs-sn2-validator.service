@@ -1,0 +1,22 @@
+[Unit]
+Description=DaniLabs Finney SN2 report validator
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+User=danilabs-sn2
+Group=danilabs-sn2
+StateDirectory=danilabs-sn2
+StateDirectoryMode=0750
+Environment=PYTHONDONTWRITEBYTECODE=1
+ExecStart=/opt/danilabs-sn2/launch.sh worker
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=15
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+
+[Install]
+WantedBy=multi-user.target

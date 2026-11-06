@@ -1,4 +1,4 @@
-"""PM2 worker: observes state and requests a fixed burn action; holds no keys."""
+"""Poll finalized state and signed reports, with optional fixed-burn status."""
 from __future__ import annotations
 
 import datetime as dt
@@ -36,18 +36,22 @@ def run(settings, socket_path, count=0, reports_config='/etc/danilabs/validator-
                   'network': settings.network}
         try:
             snapshot = chain.snapshot()
-            report = assess(snapshot, settings, previous)
-            # Signer independently reads finalized state and checks its immutable policy.
-            signer = request_burn(socket_path)
-            result.update(status='healthy' if report['burn_guard']['checks_passed']
-                          and signer.get('status') in ('maintained','submitted','committed','revealed','pending','rate_limited') else 'waiting',
-                          snapshot=snapshot, burn_guard=report['burn_guard'], signer=signer,
-                          last_epoch_100_percent_miner_burn_verified=report['last_epoch_100_percent_miner_burn_verified'])
+            result.update(snapshot=snapshot, status='waiting')
+            if socket_path is not None:
+                report = assess(snapshot, settings, previous)
+                # The signer reads finalized state and checks its own policy.
+                signer = request_burn(socket_path)
+                result.update(status='healthy' if report['burn_guard']['checks_passed']
+                              and signer.get('status') in ('maintained','submitted','committed','revealed','pending','rate_limited') else 'waiting',
+                              burn_guard=report['burn_guard'], signer=signer,
+                              last_epoch_100_percent_miner_burn_verified=report['last_epoch_100_percent_miner_burn_verified'])
             try:
                 from .reports import ReportClient, ReportSettings
                 if report_client is None:
                     report_client=ReportClient(ReportSettings.load(reports_config,settings.network),settings)
                 result['report_scoring']=report_client.poll(chain,snapshot)
+                if socket_path is None and result['report_scoring']['status']=='ready':
+                    result['status']='healthy'
             except Exception as exc:
                 result['report_scoring']={'status':'unavailable','error_type':type(exc).__name__,
                     'candidate_weights':None,'weights_submitted':False,'burn_policy_unchanged':True}

@@ -8,14 +8,23 @@ from .monitor import load_state
 from .config import FINNEY_GENESIS, LOCALNET_GENESIS
 
 
-def healthy(state, release, max_age=90):
+def healthy(state, release, max_age=90, *, mode='burn', since=None):
     try:
-        age = (dt.datetime.now(dt.timezone.utc) - dt.datetime.fromisoformat(state['heartbeat_at'])).total_seconds()
-        return bool(state['release_commit'] == release and state['status'] == 'healthy'
-                and state['network'] in ('localnet','finney') and 0 <= age < max_age
-                and state['snapshot']['genesis'] == {'localnet':LOCALNET_GENESIS,'finney':FINNEY_GENESIS}[state['network']]
-                and state['burn_guard']['checks_passed'] is True
-                and state['snapshot']['source_hash'])
+        heartbeat = dt.datetime.fromisoformat(state['heartbeat_at'])
+        age = (dt.datetime.now(dt.timezone.utc) - heartbeat).total_seconds()
+        snapshot = state['snapshot']
+        if not (state['release_commit'] == release and state['status'] == 'healthy'
+                and 0 <= age < max_age and (since is None or heartbeat >= since)
+                and snapshot['genesis'] == {'localnet':LOCALNET_GENESIS,'finney':FINNEY_GENESIS}[state['network']]
+                and snapshot['source_hash']):
+            return False
+        if mode == 'score':
+            scoring = state['report_scoring']
+            return (state['network'] == 'finney' and snapshot['netuid'] == 2
+                    and scoring['status'] == 'ready' and bool(scoring['report_id'])
+                    and scoring['epoch_end_block'] == snapshot['last_epoch_block']
+                    and scoring['weights_submitted'] is False)
+        return mode == 'burn' and state['burn_guard']['checks_passed'] is True
     except (KeyError, TypeError, ValueError):
         return False
 
@@ -24,8 +33,9 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--state', required=True)
     parser.add_argument('--release', required=True)
+    parser.add_argument('--mode', choices=('burn', 'score'), default='burn')
     args = parser.parse_args()
-    ok = bool(healthy(load_state(args.state), args.release))
+    ok = bool(healthy(load_state(args.state), args.release, mode=args.mode))
     print(json.dumps({'healthy': ok, 'release': args.release}))
     return 0 if ok else 1
 

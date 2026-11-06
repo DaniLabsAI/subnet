@@ -9,6 +9,7 @@ from __future__ import annotations
 import argparse
 from datetime import datetime, timezone
 import fcntl
+import hashlib
 import io
 import json
 import os
@@ -45,6 +46,7 @@ class Updater:
         self.releases = Path(config['releases'])
         self.state_path = config['state_file']
         self.state = load_state(self.state_path) or {'accepted': config['initial_commit'], 'rejected': []}
+        self.activated_at = None
         require_commit(self.state['accepted'])
 
     def prepare(self, sha):
@@ -72,6 +74,9 @@ class Updater:
         metadata = tomllib.loads((target / 'pyproject.toml').read_text())
         if metadata['project']['dependencies'] != DEPENDENCIES:
             raise UpdateRejected('Dependency changes require a separately reviewed base environment')
+        lock_hash = self.config.get('requirements_sha256')
+        if lock_hash and hashlib.sha256((target / 'requirements.lock').read_bytes()).hexdigest() != lock_hash:
+            raise UpdateRejected('Dependency lock changed and requires operator review')
         env = {**os.environ, 'PYTHONPATH': str(target / 'src'), 'PYTHONDONTWRITEBYTECODE': '1'}
         result = subprocess.run([self.config['python'], '-m', 'unittest', 'discover',
             '-s', str(target / 'tests'), '-v'], cwd=target, env=env,
@@ -86,6 +91,11 @@ class Updater:
         require_commit(sha)
         command(self.config['activate_command'] + [sha])
 
+    def activate_healthy(self, sha):
+        self.activated_at = datetime.now(timezone.utc)
+        self.activate(sha)
+        return self.await_health(sha)
+
     def await_health(self, sha):
         deadline = time.monotonic() + self.config.get('health_timeout_seconds', 120)
         while time.monotonic() < deadline:
@@ -93,7 +103,7 @@ class Updater:
                 state = load_state(self.config['worker_state'])
             except (OSError, ValueError):
                 state = None
-            if healthy(state, sha):
+            if healthy(state, sha, mode=self.config.get('health_mode', 'burn'), since=self.activated_at):
                 return True
             time.sleep(2)
         return False
@@ -134,13 +144,11 @@ class Updater:
             self.state['pending'] = sha
             save_state(self.state_path, self.state)
             activated = True
-            self.activate(sha)
-            if not self.await_health(sha):
+            if not self.activate_healthy(sha):
                 raise UpdateRejected('New release did not produce a fresh healthy poll')
         except Exception as exc:
             if activated:
-                self.activate(previous)
-                if not self.await_health(previous):
+                if not self.activate_healthy(previous):
                     return self.record({'status':'rollback_needs_attention','failed_commit':sha,
                                         'restored_commit':previous})
             self.state['rejected'].append(sha)
@@ -156,8 +164,7 @@ class Updater:
         if not failed:
             return
         previous = self.state['accepted']
-        self.activate(previous)
-        if not self.await_health(previous):
+        if not self.activate_healthy(previous):
             raise UpdateRejected('The last accepted worker did not recover')
         self.state.pop('pending')
         self.state['rejected'].append(failed)

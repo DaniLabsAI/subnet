@@ -1,61 +1,36 @@
-# Join the SN2 validator scoring pilot
+# Set up a DaniLabs SN2 validator
 
-Run the DaniLabs verifier alongside your existing Finney SN2 setup. Use a
-Linux CPU host with Python 3.12, Git, and outbound HTTPS and WSS. Finney RPC
-needs to serve the finalized epoch boundaries. The public Finney archive
-endpoint is suitable when a lite node has pruned the start of the epoch.
+Use an Ubuntu 24.04 LTS CPU host (x86-64 or ARM64) with **4 vCPUs, 8 GB RAM,
+and 50 GB SSD** as the recommended minimum. The install command needs `sudo`
+and `curl`. Allow outbound HTTPS to GitHub, Python package repositories and
+DaniLabs, plus outbound WSS to the public Finney archive RPC.
 
 ## Install and run
 
 ```sh
-git clone https://github.com/DaniLabsAI/subnet.git
-cd subnet
-git rev-parse HEAD
-python3.12 -m venv .venv
-.venv/bin/python -m pip install --require-hashes -r requirements.lock
-cp config/observer.example.json config/observer.local.json
-.venv/bin/python - <<'PY'
-import json
-from pathlib import Path
-
-path = Path('config/observer.local.json')
-config = json.loads(path.read_text())
-config.update(netuid=2, chain_endpoint='wss://archive.chain.opentensor.ai:443',
-              weight_submission_mode='legacy-commit-reveal')
-path.write_text(json.dumps(config, indent=2) + '\n')
-PY
-PYTHONPATH=src .venv/bin/python -m danilabs_validator \
-  --config config/observer.local.json status
-PYTHONPATH=src .venv/bin/python -m danilabs_validator \
-  --config config/observer.local.json score \
-  --reports-config config/reports.example.json
+curl -fsSLo install-danilabs-validator.sh https://raw.githubusercontent.com/DaniLabsAI/subnet/main/deploy/install-validator.sh && sudo bash install-danilabs-validator.sh
 ```
 
-`status` reports the finalized chain, runtime, and owner registration. The
-template starts without operator identity pins, so its signing guard will
-show as blocked. For a read-only check of your own UID, add your **public**
-`validator_hotkey` to the local configuration. The `score` command verifies
-the signed report, checks its epoch and miner registrations against Finney,
-then emits JSON. It works without a registered hotkey or permit. A permit is
-only relevant to live validation and the unsigned call preview.
+The installer provisions the Python environment, starts the SN2 worker under
+systemd, and verifies its first signed report against finalized Finney state.
+It then enables the five-minute update timer. The worker can run alongside your
+existing validator. Run the same command again to resume an interrupted setup.
 
-A successful run shows `status: ready`, a `report_id` and `report_sha256`,
-`epoch_end_block`, and a `candidate_weights` array. An empty array can be
-normal when an epoch contains no eligible measurements. Wait for publication
-if Finney has just finalized a new epoch, then rerun the same command. Use the
-repository’s report key pin and compare runs for the same report ID and hash.
-[Report fields and scoring rules](validator-reports.md)
+## Check the worker
 
-## Confirm your setup
+```sh
+sudo systemctl status danilabs-sn2-validator.service danilabs-sn2-update.timer
+sudo journalctl -u danilabs-sn2-validator.service -n 20 --no-pager
+sudo journalctl -u danilabs-sn2-update.service -n 20 --no-pager
+```
 
-Share the Git commit, report ID or epoch end block, and whether verification
-returned `ready` in [DaniLabs #validators](https://discord.com/channels/1555079929148866610/1564448334322602177).
-Include your public SN2 UID if you already operate one. Include a sanitized error
-if verification fails. Keep wallet material and access credentials on your host.
+The installation prints the active Git commit and verified report ID. The
+worker logs its latest finalized epoch and candidate scores. Share your public
+SN2 UID if registered, the Git commit, and the report ID in [DaniLabs #validators](https://discord.com/channels/1555079929148866610/1564448334322602177).
+If setup fails, include the sanitized error and operating system version.
 
-The pilot leaves your current production process in place. DaniLabs signs only
-the reviewed owner-destination burn policy on its own validator. Operators
-planning a live signer migration should coordinate it in #validators and review
-the [signer requirements](production-signer.md) and [runtime 488 review](runtime-488.md)
-before enabling any Finney signing. A code update alone does not approve a runtime
-or change the weight policy.
+The updater stages and tests new commits from `main` before activating them.
+It accepts a release after it verifies a fresh signed report and restores the
+last accepted release if the new one fails. DaniLabs will use this update path
+to ship miner rewards support and coordinate the signing policy activation
+with operators. [Updater details](worker-updates.md) · [Signer requirements](production-signer.md)

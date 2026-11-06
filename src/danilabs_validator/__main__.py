@@ -16,6 +16,9 @@ def main(argv=None) -> int:
     sub.add_parser("status", help="Inspect one finalized snapshot")
     score = sub.add_parser("score", help="Fetch the signed validator endpoint and log scores and candidate weights")
     score.add_argument("--reports-config", required=True)
+    score_watch = sub.add_parser("score-watch", help="Continuously verify signed reports and publish worker health")
+    score_watch.add_argument("--reports-config", required=True)
+    score_watch.add_argument("--count", type=int, default=0)
     watch = sub.add_parser("watch", help="Poll and persist local observer state")
     watch.add_argument("--count", type=int, default=0, help="Number of polls; 0 watches continuously")
     burn = sub.add_parser("burn-watch", help="Maintain fixed burn policy and log signed-report candidate scores")
@@ -23,7 +26,7 @@ def main(argv=None) -> int:
     burn.add_argument("--count", type=int, default=0)
     burn.add_argument("--reports-config", default="/etc/danilabs/validator-reports.json")
     args = parser.parse_args(argv)
-    if args.command in ("watch", "burn-watch") and args.count < 0:
+    if args.command in ("watch", "burn-watch", "score-watch") and args.count < 0:
         parser.error("--count must be non-negative")
     chain = None
     try:
@@ -34,9 +37,9 @@ def main(argv=None) -> int:
             client=ReportClient(ReportSettings.load(args.reports_config,settings.network),settings)
             print(json.dumps(client.poll(chain,snapshot),sort_keys=True),flush=True)
             return 0
-        if args.command == "burn-watch":
+        if args.command in ("burn-watch", "score-watch"):
             from .worker import run
-            return run(settings, args.signer_socket, args.count, args.reports_config)
+            return run(settings, getattr(args, "signer_socket", None), args.count, args.reports_config)
         chain = FinalizedChain(settings)
         # Status is a fresh, read-only snapshot. Only the observer watch command
         # owns the flat observer state format; the burn worker stores an envelope.
