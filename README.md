@@ -1,35 +1,34 @@
 # DaniLabs SN2 validator
 
-DaniLabs runs distributed AI inference on Bittensor Finney subnet 2. This
-repository contains the validator worker, signed-report verifier, miner scoring
-code, and isolated burn signer.
+Validator software for Bittensor Finney subnet 2. The worker verifies signed
+performance reports against finalized chain state and scores miners by workload.
 
-**Existing SN2 validators can join the scoring pilot now.** Run the verifier
-alongside your current validator and compare results from the same finalized
-epoch. Use an Ubuntu 24.04 LTS CPU host (x86-64 or ARM64) with at least
-**4 vCPUs, 8 GB RAM, and 50 GB SSD** as the recommended starting spec. The host
-needs `sudo`, `curl`, and outbound HTTPS and WSS.
+## Requirements
+
+Use an Ubuntu 24.04 LTS CPU host (x86-64 or ARM64) with systemd. The recommended
+minimum is **4 vCPUs, 8 GB RAM, and 50 GB SSD**. Have `sudo` and `curl` available
+and allow outbound HTTPS and WSS connections.
+
+## Install
 
 ```sh
 curl -fsSLo install-danilabs-validator.sh https://raw.githubusercontent.com/DaniLabsAI/subnet/main/deploy/install-validator.sh && sudo bash install-danilabs-validator.sh
 ```
 
-The installer sets up the systemd worker and its auto-updater. Every five
-minutes the updater checks `main`. It stages and tests a new commit, checks its
-live report verification, and rolls back if the new worker fails that check.
+Installation starts the worker, verifies a finalized report, and enables
+automatic updates. A successful install prints the Git commit and report ID.
 
-- [Start the validator scoring pilot](docs/validator-onboarding.md)
-- [Signed reports, score calculation, and evidence requirements](docs/validator-reports.md)
-- [Worker updates and rollback](docs/worker-updates.md)
-- [Finney signer custody and activation](docs/production-signer.md)
-- [Finalized chain observer](docs/operator-pilot.md) and [localnet testing](docs/localnet-validator.md)
+## Operate
 
-The DaniLabs production signer assigns 100% of its weight to the verified
-subnet owner for miner-incentive burn. Scoring runs in shadow mode. Candidate
-weights are logged for comparison and are ineligible for miner rewards pending
-independent token and correctness verification. A validator’s weight row and
-the subnet’s actual burn settlement are checked separately.
+```sh
+sudo systemctl status danilabs-sn2-validator.service danilabs-sn2-update.timer
+```
 
-For setup and coordination, use [DaniLabs #validators](https://discord.com/channels/1555079929148866610/1564448334322602177).
-[Join the DaniLabs Discord](https://discord.gg/df3TYnaX4f) if you need access.
-The [DaniLabs operator guide](https://danilabs.ai/docs/validators/) has the same setup steps.
+- [Installation, verification, and troubleshooting](docs/validator-onboarding.md)
+- [Automatic updates and rollback](docs/worker-updates.md)
+- [Report verification and scoring](docs/validator-reports.md)
+- [DaniLabs validator documentation](https://danilabs.ai/docs/validators/)
+
+For operator support, share your SN2 UID, Git commit, and report ID in
+[DaniLabs #validators](https://discord.com/channels/1555079929148866610/1564448334322602177).
+[Join the DaniLabs Discord](https://discord.gg/df3TYnaX4f) for access.

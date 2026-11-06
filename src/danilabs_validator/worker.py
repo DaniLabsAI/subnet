@@ -62,7 +62,14 @@ def run(settings, socket_path, count=0, reports_config='/etc/danilabs/validator-
         save_state(settings.state_file, result)
         # This contains public chain evidence only, never key material or salts.
         Path(settings.state_file).chmod(0o640)
-        print(json.dumps(result, sort_keys=True), flush=True)
+        event = result
+        if socket_path is None:
+            event = {key: result[key] for key in ('status', 'network', 'release_commit', 'heartbeat_at', 'error_type') if key in result}
+            if snapshot := result.get('snapshot'):
+                event['finalized_block'] = snapshot['source_block']
+            if scoring := result.get('report_scoring'):
+                event['report'] = {key: scoring[key] for key in ('status', 'report_id', 'report_sha256', 'epoch_end_block', 'error_type') if key in scoring}
+        print(json.dumps(event, sort_keys=True), flush=True)
         i += 1
         if count and i >= count:
             chain.close()

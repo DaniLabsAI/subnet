@@ -10,9 +10,9 @@ from .monitor import assess, load_state, save_state
 
 
 def main(argv=None) -> int:
-    parser = argparse.ArgumentParser(description="DaniLabs finalized-chain observer, signed-report scorer, and fixed-burn worker")
+    parser = argparse.ArgumentParser(description="DaniLabs finalized-chain observer and signed-report validator")
     parser.add_argument("--config", required=True)
-    sub = parser.add_subparsers(dest="command", required=True)
+    sub = parser.add_subparsers(dest="command", required=True, metavar="{status,score,score-watch,watch}")
     sub.add_parser("status", help="Inspect one finalized snapshot")
     score = sub.add_parser("score", help="Fetch the signed validator endpoint and log scores and candidate weights")
     score.add_argument("--reports-config", required=True)
@@ -21,7 +21,7 @@ def main(argv=None) -> int:
     score_watch.add_argument("--count", type=int, default=0)
     watch = sub.add_parser("watch", help="Poll and persist local observer state")
     watch.add_argument("--count", type=int, default=0, help="Number of polls; 0 watches continuously")
-    burn = sub.add_parser("burn-watch", help="Maintain fixed burn policy and log signed-report candidate scores")
+    burn = sub.add_parser("burn-watch")
     burn.add_argument("--signer-socket", required=True)
     burn.add_argument("--count", type=int, default=0)
     burn.add_argument("--reports-config", default="/etc/danilabs/validator-reports.json")

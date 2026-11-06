@@ -8,6 +8,5 @@
   "validator_hotkey": null,
   "expected_validator_registration_block": null,
   "state_file": ".state/observer.json",
-  "poll_seconds": 60,
-  "miner_burned_semantics": null
+  "poll_seconds": 60
 }

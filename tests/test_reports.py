@@ -254,19 +254,23 @@ class ReportTests(unittest.TestCase):
             self.assertIsNone(state['report_scoring']['candidate_weights'])
 
     def test_score_worker_health_requires_fresh_matching_report_without_signer(self):
-        snapshot={'genesis':FINNEY_GENESIS,'netuid':2,'source_hash':'hash','last_epoch_block':1}
+        snapshot={'genesis':FINNEY_GENESIS,'netuid':2,'source_hash':'hash','source_block':2,'last_epoch_block':1}
         verified={'status':'ready','report_id':'report-1','epoch_end_block':1,'weights_submitted':False}
         with tempfile.TemporaryDirectory() as root:
             settings=replace(SETTINGS,state_file=str(Path(root)/'worker.json'))
             with patch('danilabs_validator.worker.FinalizedChain') as chain, \
                     patch('danilabs_validator.worker.request_burn') as burn, \
                     patch('danilabs_validator.reports.ReportSettings.load'), \
-                    patch('danilabs_validator.reports.ReportClient') as client:
+                    patch('danilabs_validator.reports.ReportClient') as client, patch('builtins.print') as output:
                 chain.return_value.snapshot.return_value=snapshot
                 client.return_value.poll.return_value=verified
                 since=datetime.now(timezone.utc)
                 self.assertEqual(run(settings,None,count=1),0)
                 burn.assert_not_called()
+                event=json.loads(output.call_args.args[0])
+                self.assertEqual(event['report']['report_id'],'report-1')
+                self.assertEqual(event['finalized_block'],2)
+                self.assertNotIn('snapshot',event)
             state=json.loads(Path(settings.state_file).read_text())
             self.assertTrue(healthy(state,'development',mode='score',since=since))
             self.assertFalse(healthy(state,'development',mode='score',since=datetime.now(timezone.utc)))
