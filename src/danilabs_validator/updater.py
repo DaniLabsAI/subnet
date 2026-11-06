@@ -1,4 +1,4 @@
-"""Fetch main, test a staged worker, activate, and roll back on failed health.
+"""Fetch the configured branch, test a worker release and roll back on failed health.
 
 Run as dani-deploy. This process has no signer key or signer source permissions.
 The root-owned activation helper accepts only an exact commit ID and controls
@@ -106,15 +106,17 @@ class Updater:
 
     def once(self):
         # The config fixes this URL/ref; candidate code cannot supply fetch targets.
-        if self.config.get('branch') != 'main':
-            raise UpdateRejected('Only the explicitly configured main branch is supported')
+        branch = self.config.get('branch')
+        if branch not in ('main', 'master'):
+            raise UpdateRejected('Configure exactly one of main or master')
+        remote_ref = f'refs/remotes/origin/{branch}'
         if not self.cache.exists():
             command(['git', 'init', '--bare', str(self.cache)])
         try:
             command(['git', '--git-dir', str(self.cache), 'fetch', '--no-tags',
-                     self.config['repository'], 'refs/heads/main:refs/remotes/origin/main'])
+                     self.config['repository'], f'refs/heads/{branch}:{remote_ref}'])
             sha = command(['git', '--git-dir', str(self.cache), 'rev-parse',
-                           'refs/remotes/origin/main']).stdout.decode().strip()
+                           remote_ref]).stdout.decode().strip()
             require_commit(sha)
         except Exception as exc:
             return self.record({'status':'fetch_failed', 'error_type':type(exc).__name__,
@@ -136,13 +138,13 @@ class Updater:
             if not self.await_health(sha):
                 raise UpdateRejected('New release did not produce a fresh healthy poll')
         except Exception as exc:
-            self.state['rejected'].append(sha)
-            self.state.pop('pending', None)
             if activated:
                 self.activate(previous)
                 if not self.await_health(previous):
                     return self.record({'status':'rollback_needs_attention','failed_commit':sha,
                                         'restored_commit':previous})
+            self.state['rejected'].append(sha)
+            self.state.pop('pending', None)
             return self.record({'status':'rolled_back' if activated else 'rejected',
                 'failed_commit':sha,'running_release_preserved':previous,'error_type':type(exc).__name__})
         self.state['accepted'] = sha
@@ -150,11 +152,16 @@ class Updater:
         return self.record({'status':'updated','previous':previous,'commit':sha})
 
     def recover_interrupted(self):
-        if self.state.get('pending'):
-            failed = self.state.pop('pending')
-            self.activate(self.state['accepted'])
-            self.state['rejected'].append(failed)
-            self.record({'status':'recovered_interrupted_update','restored_commit':self.state['accepted']})
+        failed = self.state.get('pending')
+        if not failed:
+            return
+        previous = self.state['accepted']
+        self.activate(previous)
+        if not self.await_health(previous):
+            raise UpdateRejected('The last accepted worker did not recover')
+        self.state.pop('pending')
+        self.state['rejected'].append(failed)
+        self.record({'status':'recovered_interrupted_update','restored_commit':previous})
 
 
 def main():
@@ -164,19 +171,23 @@ def main():
     args = parser.parse_args()
     config = json.loads(Path(args.config).read_text())
     Path(config['lock_file']).parent.mkdir(parents=True, exist_ok=True)
-    with open(config['lock_file'], 'w') as lock:
-        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    with open(config['lock_file'], 'a') as lock:
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            print(json.dumps({'status':'check_in_progress'}), flush=True)
+            return 0
         updater = Updater(config)
-        updater.recover_interrupted()
         while True:
             try:
-                updater.once()
+                updater.recover_interrupted()
+                result = updater.once()
             except Exception as exc:
-                updater.record({'status':'error','error_type':type(exc).__name__})
+                result = updater.record({'status':'error','error_type':type(exc).__name__})
             if args.once:
-                return
+                return 0 if result['status'] in ('updated', 'up_to_date') else 1
             time.sleep(config.get('interval_seconds',300))
 
 
 if __name__ == '__main__':
-    main()
+    raise SystemExit(main())

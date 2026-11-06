@@ -56,6 +56,45 @@ class ReportTests(unittest.TestCase):
         self.assertEqual(result['component_weights'],{'tps':.5,'ttft':.35,'reliability':.1,'ping':.05})
         self.assertFalse(result['weights_submitted']);self.assertFalse(result['chain_writes'])
 
+    def test_independent_quality_excludes_unverified_and_undercovered_work(self):
+        from danilabs_validator.quality import SCHEMA as AUDIT_SCHEMA, load_candidates, qualified_candidates
+        verifier = Keypair.create_from_seed('0x'+'33'*32)
+        report = validated()
+        other = report['miners'][0] | {'uid':59,'hotkey':'peer'}
+        report['miners'].append(other)
+        identities = IDENTITY | {'peer':{'uid':59,'registration_block':100}}
+        rows = [{'request_id':f'audit-{uid}-{index}','uid':uid,'model_id':'openai/gpt-oss-20b',
+                 'finished_at':report['window_start'],'input_tokens':100,'output_tokens':300,
+                 'ttft_ms':200,'decode_ms':1000,'token_count_verified':True,'correctness_verified':True}
+                for uid in (58,59) for index in range(5)]
+        def sign(samples, digest):
+            body=json.dumps({'schema':AUDIT_SCHEMA,'report_sha256':digest,'samples':samples}).encode()
+            return body,base64.b64encode(verifier.sign(body)).decode()
+        def run(samples, pin=verifier.public_key.hex()):
+            body,signature=sign(samples,report['report_sha256'])
+            return qualified_candidates(report,identities,body,signature,verifier_key=pin,report_key=PUBLIC.hex())
+        baseline=run(rows)
+        self.assertEqual(baseline['candidate_weights'],[[58,32768],[59,32767]])
+        report['miners'][0]['models'][0]['output_tokens'] += 500
+        self.assertEqual(run(rows)['candidate_weights'],baseline['candidate_weights'])
+        extra=rows[0] | {'request_id':'singleton','input_tokens':2000}
+        self.assertEqual(run(rows+[extra])['candidate_weights'],baseline['candidate_weights'])
+        for key in ('token_count_verified','correctness_verified'):
+            self.assertEqual(run(rows[:-1]+[rows[-1] | {key:False}])['candidate_weights'],[])
+        with self.assertRaises(ReportError): run(rows+[rows[0]])
+        with self.assertRaises(ReportError): run(rows,PUBLIC.hex())
+        with tempfile.TemporaryDirectory() as temporary:
+            evidence=Path(temporary)/'quality.json'
+            config=ReportSettings('https://api.danilabs.ai/v1/validator/reports/latest',PUBLIC.hex(),
+                                  quality_verifier_key_hex=verifier.public_key.hex(),quality_evidence_path=str(evidence))
+            self.assertEqual(load_candidates(report,identities,config)['status'],'unavailable')
+            for digest,state in [(report['report_sha256'],'ready'),('0'*64,'unavailable')]:
+                body,signature=sign(rows,digest)
+                evidence.write_text(json.dumps({'body_b64':base64.b64encode(body).decode(),'signature':signature}))
+                result=load_candidates(report,identities,config)
+                self.assertEqual(result['status'],state)
+                self.assertEqual(result['candidate_weights'],baseline['candidate_weights'] if state=='ready' else [])
+
     def test_tampering_wrong_key_and_unsigned_reports_rejected(self):
         body,headers=signed(document())
         for b,h in [(body+b' ',headers),(body,{}),(body,headers|{'X-Dani-Report-Key-ID':'wrong'})]:
@@ -104,6 +143,37 @@ class ReportTests(unittest.TestCase):
     def test_no_samples_produces_no_candidate_weights(self):
         d=validated();d['miners'][0].update(models=[],completed_requests=0,valid_samples=0)
         self.assertEqual(score(d,IDENTITY)['candidate_weights'],[])
+
+    def test_terminal_success_reliability_excludes_only_decode_sample_not_delivery(self):
+        d=validated();d['miners'][0].update(completed_requests=6,invalid_completed_requests=1)
+        result=score(d,IDENTITY)
+        self.assertEqual(result['policy_version'],'performance-v4-terminal-success-reliability-tps50-ttft35-reliability10-ping5')
+        self.assertEqual(result['scores'][0]['completion_reliability'],1.0)
+        self.assertEqual(result['scores'][0]['valid_samples'],5)
+        self.assertEqual(result['candidate_weights'],[[58,65535]])
+        # Real failures still reduce reliability, while cancellations do not.
+        d['miners'][0].update(failed_requests=2,client_cancellations=20)
+        self.assertEqual(score(d,IDENTITY)['scores'][0]['completion_reliability'],.75)
+
+    def test_short_only_successes_do_not_invent_tps_or_candidate_weights(self):
+        d=validated();d['miners'][0].update(completed_requests=1,invalid_completed_requests=1,valid_samples=0,models=[])
+        result=score(d,IDENTITY)
+        self.assertEqual(result['scores'][0]['completion_reliability'],1.0)
+        self.assertEqual(result['candidate_weights'],[])
+
+    def test_historical_signed_v1_reports_preserve_v3_score_semantics(self):
+        doc=document();doc['metrics_version']='gateway-terminal-v1'
+        doc['miners'][0].update(completed_requests=6,invalid_completed_requests=1)
+        before=signed(doc)[0]
+        d=verify(*signed(doc),PUBLIC.hex(),SETTINGS,NOW)
+        result=score(d,IDENTITY)
+        self.assertEqual(result['policy_version'],'performance-v3-reliability-gated-tps50-ttft35-reliability10-ping5')
+        self.assertEqual(result['scores'][0]['completion_reliability'],round(5/6,6))
+        self.assertEqual(before,signed(doc)[0])
+        doc['metrics_version']='unknown-version'
+        with self.assertRaises(ReportError):verify(*signed(doc),PUBLIC.hex(),SETTINGS,NOW)
+        d['metrics_version']='unknown-version'
+        with self.assertRaises(ReportError):score(d,IDENTITY)
 
     def test_cached_report_still_rechecks_current_registration(self):
         client=ReportClient(ReportSettings('https://api.danilabs.ai/v1/validator/reports/latest',PUBLIC.hex()),SETTINGS)

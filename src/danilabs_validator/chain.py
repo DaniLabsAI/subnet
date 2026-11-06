@@ -90,11 +90,13 @@ class FinalizedChain:
             permits = query("ValidatorPermit", [n])
             stakes = query("StakeWeight", [n])
             last_updates = query("LastUpdate", [n])
+            activity = query("Active", [n])
             def validator_fields(registration):
                 if not registration or not registration.get("registered"):
                     return
                 uid = registration["uid"]
-                for key, vector in (("validator_permit", permits), ("stake_weight_raw", stakes), ("last_update", last_updates)):
+                for key, vector in (("validator_permit", permits), ("stake_weight_raw", stakes), ("last_update", last_updates),
+                                    ("active", activity)):
                     registration[key] = vector[uid] if isinstance(vector, (list, tuple)) and uid < len(vector) else None
                 # Mechanism 0 uses the subnet's base storage index. Extra mechanisms
                 # are surfaced below and keep the burn guard blocked until supported.
@@ -130,11 +132,18 @@ class FinalizedChain:
                 except Exception:
                     errors["last_epoch_evidence"] = "unavailable; historical RPC may be required"
             mechanism_count = query("MechanismCountCurrent", [n])
+            code_hash = None
+            if (runtime.get("specVersion") or 0) >= 488:
+                try:
+                    code_hash = s.rpc_request("state_getStorageHash", ["0x3a636f6465", block_hash]).get("result")
+                except Exception:
+                    errors["runtime_code_hash"] = "unavailable"
             return {
                 "network": self.settings.network, "genesis": genesis, "netuid": n,
                 "source_block": block, "source_hash": block_hash,
                 "observed_at_utc": datetime.now(timezone.utc).isoformat(),
                 "runtime_spec_version": runtime.get("specVersion"),
+                "runtime_code_hash": code_hash,
                 "owner": owner, "subnet_owner_coldkey": owner_coldkey,
                 "owner_coldkey_matches": bool(owner and owner.get("registered") and isinstance(owner_coldkey, str) and owner.get("coldkey") == owner_coldkey),
                 "validator": validator,

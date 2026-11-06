@@ -67,10 +67,41 @@ class UpdaterTests(unittest.TestCase):
             save_state(updater.state_path,updater.state)
             restarted=self.fixture(root)
             restarted.activate=Mock()
+            restarted.await_health=Mock(return_value=True)
             restarted.recover_interrupted()
             restarted.activate.assert_called_once_with(A)
+            restarted.await_health.assert_called_once_with(A)
             self.assertNotIn('pending',load_state(restarted.state_path))
             self.assertIn(B,load_state(restarted.state_path)['rejected'])
+
+    def test_failed_rollback_is_retried_before_another_release(self):
+        with tempfile.TemporaryDirectory() as root:
+            updater=self.fixture(root)
+            updater.prepare=Mock()
+            updater.activate=Mock()
+            updater.await_health=Mock(return_value=False)
+            with patch('danilabs_validator.updater.command',side_effect=self.fake_command):
+                self.assertEqual(updater.once()['status'],'rollback_needs_attention')
+            restarted=self.fixture(root)
+            restarted.activate=Mock()
+            restarted.await_health=Mock(side_effect=[False,True])
+            with self.assertRaises(UpdateRejected):
+                restarted.recover_interrupted()
+            self.assertEqual(load_state(restarted.state_path)['pending'],B)
+            restarted.recover_interrupted()
+            self.assertNotIn('pending',load_state(restarted.state_path))
+            self.assertEqual(load_state(restarted.state_path)['rejected'],[B])
+
+    def test_master_uses_only_its_configured_ref(self):
+        with tempfile.TemporaryDirectory() as root:
+            updater=self.fixture(root)
+            updater.config['branch']='master'
+            updater.state['accepted']=B
+            with patch('danilabs_validator.updater.command',side_effect=self.fake_command) as command:
+                self.assertEqual(updater.once()['status'],'up_to_date')
+            fetch, resolve = (call.args[0] for call in command.call_args_list)
+            self.assertEqual(fetch[-1],'refs/heads/master:refs/remotes/origin/master')
+            self.assertEqual(resolve[-1],'refs/remotes/origin/master')
 
     def test_only_full_commit_ids_are_accepted(self):
         for sha in ['main','a'*39,'../'+A,'a'*40+';id']:

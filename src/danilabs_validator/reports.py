@@ -22,8 +22,10 @@ from bittensor_wallet import Keypair
 from .chain import value
 
 SCHEMA='danilabs.validator-report.v2'
-METRICS='gateway-terminal-v1'
-POLICY_VERSION='performance-v3-reliability-gated-tps50-ttft35-reliability10-ping5'
+METRICS='gateway-terminal-v2'
+LEGACY_METRICS='gateway-terminal-v1'
+LEGACY_POLICY_VERSION='performance-v3-reliability-gated-tps50-ttft35-reliability10-ping5'
+POLICY_VERSION='performance-v4-terminal-success-reliability-tps50-ttft35-reliability10-ping5'
 MODEL_POLICY={'openai/gpt-oss-20b':{'tps':300,'ttft_ms':500,'budget':1}}
 COMPONENT_WEIGHTS={'tps':.50,'ttft':.35,'reliability':.10,'ping':.05}
 MAX_BYTES=2*1024*1024
@@ -48,11 +50,15 @@ class ReportSettings:
     url:str
     public_key_hex:str
     poll_seconds:int=60
+    quality_verifier_key_hex:str|None=None
+    quality_evidence_path:str|None=None
 
     @classmethod
     def load(cls,path,network):
         obj=strict_json(Path(path).read_bytes())
-        if set(obj)!={'url','public_key_hex','poll_seconds'}:raise ReportError('Invalid report configuration fields')
+        required={'url','public_key_hex','poll_seconds'}
+        quality_fields={'quality_verifier_key_hex','quality_evidence_path'}
+        if set(obj) not in (required,required|quality_fields):raise ReportError('Invalid report configuration fields')
         result=cls(**obj)
         endpoint=urlsplit(result.url)
         if (not endpoint.hostname or endpoint.username or endpoint.password or endpoint.query or endpoint.fragment
@@ -63,6 +69,13 @@ class ReportSettings:
             raise ReportError('Localnet reports require explicit loopback HTTP')
         if not re.fullmatch('[a-f0-9]{64}',result.public_key_hex):raise ReportError('Pin an sr25519 public key')
         if type(result.poll_seconds) is not int or not 15<=result.poll_seconds<=300:raise ReportError('Invalid report poll interval')
+        if quality_fields <= set(obj) and (
+                not isinstance(result.quality_verifier_key_hex,str)
+                or not re.fullmatch('[a-f0-9]{64}',result.quality_verifier_key_hex)
+                or result.quality_verifier_key_hex==result.public_key_hex
+                or not isinstance(result.quality_evidence_path,str)
+                or not Path(result.quality_evidence_path).is_absolute()):
+            raise ReportError('Pin an independent verifier key and an absolute evidence path')
         return result
 
 
@@ -83,7 +96,7 @@ def verify(body,headers,public_key_hex,settings,now,previous=None):
     except Exception as exc:
         raise ReportError('Report signature is invalid') from exc
     report=strict_json(body)
-    if (report.get('schema')!=SCHEMA or report.get('metrics_version')!=METRICS
+    if (report.get('schema')!=SCHEMA or report.get('metrics_version') not in (LEGACY_METRICS,METRICS)
             or report.get('network')!=settings.network or report.get('genesis')!=settings.expected_genesis
             or report.get('netuid')!=settings.netuid or report.get('test_mode') is not (settings.network=='localnet')):
         raise ReportError('Report schema or chain pin mismatch')
@@ -118,6 +131,9 @@ def integer(v,maximum=2**63-1):
 
 
 def score(report,identities):
+    metrics=report.get('metrics_version')
+    if metrics not in (LEGACY_METRICS,METRICS):raise ReportError('Unsupported report metric semantics')
+    policy=POLICY_VERSION if metrics==METRICS else LEGACY_POLICY_VERSION
     scores=[];cohorts={};seen=set();uids=set()
     for miner in report['miners']:
         hotkey=miner['hotkey'];uid=integer(miner['uid'],65535)
@@ -128,7 +144,11 @@ def score(report,identities):
         completed,failed,cancelled,invalid,samples=[integer(miner[k]) for k in [
             'completed_requests','failed_requests','client_cancellations','invalid_completed_requests','valid_samples']]
         if invalid+samples!=completed:raise ReportError('Completion counts are inconsistent')
-        reliability=samples/(completed+failed) if completed+failed else 0
+        # A terminal success may have no meaningful decode interval (e.g. one
+        # output token). Keep it out of TPS cohorts without calling it a delivery
+        # failure. Historical v1 reports retain their original scoring semantics.
+        successes=completed if metrics==METRICS else samples
+        reliability=successes/(completed+failed) if completed+failed else 0
         ping_samples=integer(miner['ping_samples'])
         ping=miner['p50_gateway_rtt_us']
         p95=miner['p95_gateway_rtt_us']
@@ -179,7 +199,7 @@ def score(report,identities):
     remaining=65535-sum(units.values()) if units else 0
     order=sorted(units,key=lambda uid:(-(shares[uid]*65535-units[uid]),uid))
     for uid in order[:remaining]:units[uid]+=1
-    return {'policy_version':POLICY_VERSION,'component_weights':COMPONENT_WEIGHTS,'scores':scores,
+    return {'policy_version':policy,'component_weights':COMPONENT_WEIGHTS,'scores':scores,
         'candidate_weights':[[uid,units[uid]] for uid in sorted(units) if units[uid]],
         'chain_writes':False,'weights_submitted':False,'mode':'score_only_burn_100',
         'report_id':report['report_id'],'report_sha256':report['report_sha256'],'window_end':report['window_end'],
@@ -278,6 +298,9 @@ class ReportClient:
             if identities[miner['hotkey']]!={'uid':miner['uid'],'registration_block':miner['registration_block']}:
                 raise ReportError('Finalized miner registration differs from report')
         result=self.result if cached else score(report,identities)
+        if self.config.quality_evidence_path:
+            from .quality import load_candidates
+            result=result|{'quality_scoring':load_candidates(report,identities,self.config)}
         result=result|{'submission_preview':weight_preview(result,chain,snapshot,self.settings)}
         result=result|{'finalized_source_block':snapshot['source_block'],'finalized_source_hash':snapshot['source_hash']}
         self.previous=report;self.result=result

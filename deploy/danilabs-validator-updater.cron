@@ -1,0 +1,6 @@
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+GIT_TERMINAL_PROMPT=0
+PYTHONDONTWRITEBYTECODE=1
+PYTHONPATH=/opt/danilabs/validator-updater/current/src
+
+*/5 * * * * dani-deploy /usr/bin/systemd-cat -t danilabs-validator-updater /usr/bin/python3 -m danilabs_validator.updater --config /etc/danilabs/updater.json --once

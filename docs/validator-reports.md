@@ -35,13 +35,13 @@ Endpoint/signature failures log unavailable candidate weights and leave the
 fixed burn worker running. Existing operators must install the reports
 configuration; a Git pull does not create their local configuration or signers.
 
-## Policy: performance v2
+## Policy: performance v4 (new terminal metrics)
 
 | Component | Weight | Factor |
 | --- | ---: | --- |
 | Decode TPS | 50% | TPS / (TPS + model target) |
 | TTFT | 35% | target TTFT / (target TTFT + measured TTFT) |
-| Completion reliability | 10% | valid completions / (completed + failed requests) |
+| Completion reliability | 10% | terminal successful completions / (completed + failed requests) |
 | Gateway-to-miner RTT | 5% | 250 ms / (250 ms + measured RTT) |
 
 Initial `openai/gpt-oss-20b` targets are 300 TPS and 500 ms TTFT. Missing ping
@@ -49,6 +49,30 @@ measurements remain null and contribute zero to the ping component. Client
 cancellations are excluded from the reliability denominator. Unknown native
 usage and inconsistent measurements never become estimated completed work.
 Observed readiness and sample counts are logged as additional diagnostics.
+
+New reports use `metrics_version=gateway-terminal-v2` and policy
+`performance-v4-terminal-success-reliability-tps50-ttft35-reliability10-ping5`.
+`completed_requests` counts successful terminal receipts independently of timing
+sample eligibility. A successful zero/one-token response, or one without valid
+decode timing, remains a delivery success but contributes no TPS cohort sample.
+`valid_samples` and the legacy-named `invalid_completed_requests` still partition
+completed requests by timing eligibility; the latter is not an API failure count.
+No TPS is fabricated. A short-output-only window can have reliability 1.0 and
+still have no candidate weights because it has no eligible speed samples.
+Missing native usage remains unknown and does not become measured token volume.
+
+Historical signed `gateway-terminal-v1` reports retain policy
+`performance-v3-reliability-gated-tps50-ttft35-reliability10-ping5`, whose reliability
+numerator is `valid_samples`. The validator dispatches by the signed metrics
+version; independent replay rejects a mismatched policy/metric pair. Existing
+immutable epoch bytes, signatures, report IDs and hashes are not rewritten or
+re-signed. Unknown metrics versions fail closed. Deploy validator and independent
+replay support before switching the publisher; only newly created epoch reports
+use v2 metrics. Archived epochs remain readable under their original semantics.
+Reliability is calculated per miner across the report and also multiplies the
+weighted component sum, preventing a fast but unreliable miner from keeping a
+high raw score. The component table alone is not the complete formula:
+`raw = reliability * (0.50*tps_factor + 0.35*ttft_factor + 0.10*reliability + 0.05*ping_factor)`.
 
 Scores compare the same model and prompt/output-length buckets. Configured
 model budgets are divided between workload buckets by observed output volume;
@@ -116,3 +140,17 @@ Scores and candidate weights are logged only. They are never passed to the burn
 signer. Its fixed owner-destination policy and commit/reveal behavior remain
 unchanged. Enabling miner weight submission requires a separately reviewed
 signer policy and explicit operator approval; no setting in this report enables it.
+
+The independent quality dry run in `danilabs_validator.quality` consumes an epoch-bound
+sample document signed by a distinct pinned verifier. It builds performance cohorts
+from independently measured, correctness-checked samples. A cohort requires at least
+five eligible samples per miner and two miners. Miner-reported token counts cannot
+contribute to this vector. The production observer can continue to show raw shadow
+scores. A deployed verifier that samples real traffic and verifies execution is a
+separate prerequisite for production use. The dry run has no weight writer.
+
+The worker can read that evidence using paired optional report configuration fields
+`quality_verifier_key_hex` and `quality_evidence_path`. The file is an envelope with
+`body_b64` and a detached base64 `signature`. The worker checks the current report
+digest and finalized identities before publishing a separate `quality_scoring`
+result. Missing, invalid and previous-epoch files yield an empty verified vector.

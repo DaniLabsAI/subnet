@@ -43,7 +43,7 @@ class FakeSubstrate:
         values = {
             "NetworksAdded": True, "SubnetOwnerHotkey": "owner-hotkey", "SubnetOwner": "owner-coldkey",
             "ValidatorPermit": [False, False, True], "StakeWeight": [0, 0, 50000],
-            "LastUpdate": [0, 0, 80], "Weights": [(1, 65535)],
+            "LastUpdate": [0, 0, 80], "Active": [False, False, True], "Weights": [(1, 65535)],
             "RecycleOrBurn": {"Burn": ()}, "MinerBurned": {"bits": 1 << 32},
             "LastEpochBlock": 90, "LastMechansimStepBlock": 90, "Tempo": 360,
             "CommitRevealWeightsEnabled": False, "MechanismCountCurrent": [1],
@@ -72,6 +72,7 @@ class ObserverTests(unittest.TestCase):
     def test_all_reads_use_explicit_finalized_or_settlement_hash(self):
         snapshot, substrate = self.snapshot()
         self.assertEqual(snapshot["owner"]["uid"], 1)  # Never assumes UID 0.
+        self.assertIs(snapshot["validator"]["active"], True)
         self.assertEqual(snapshot["validator"]["uid"], 2)
         self.assertEqual(snapshot["source_block"], 100)
         self.assertEqual(snapshot["last_epoch_evidence"]["source_block"], 90)

@@ -10,6 +10,7 @@ from danilabs_validator.config import FINNEY_GENESIS, LOCALNET_GENESIS, Settings
 from danilabs_validator.health import healthy
 from test_observer import FakeSubstrate, SETTINGS
 from danilabs_validator.chain import FinalizedChain
+from danilabs_validator.custody import RUNTIME_CODE_HASHES, RUNTIME_REVIEWS, SignerPolicy
 
 
 class BurnTests(unittest.TestCase):
@@ -70,6 +71,16 @@ class BurnTests(unittest.TestCase):
             self.assertEqual(result['status'],'submitted')
             signer.submit.assert_called_once_with('set_weights',
                 {'netuid':73,'dests':[1],'weights':[65535],'version_key':0},snapshot)
+
+    def test_runtime_488_requires_the_exact_finalized_wasm(self):
+        settings,snapshot=self.fixture()
+        policy=SignerPolicy(enabled=True,netuid=settings.netuid,runtime_spec=488,
+                            runtime_source_commit=RUNTIME_REVIEWS[488])
+        snapshot['runtime_spec_version']=488
+        with self.assertRaisesRegex(BurnBlocked,'Finalized WASM differs'):
+            preflight(snapshot,settings,policy=policy)
+        snapshot['runtime_code_hash']=RUNTIME_CODE_HASHES[488]
+        self.assertTrue(preflight(snapshot,settings,policy=policy)['burn_guard']['checks_passed'])
 
     def test_rate_limit_and_healthy_row_do_not_create_repeated_transactions(self):
         settings, snapshot = self.fixture()

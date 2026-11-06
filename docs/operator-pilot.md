@@ -14,8 +14,8 @@ processing. These are DaniLabs planning estimates, not Bittensor protocol
 minimums or a measured capacity guarantee. This observer does not run inference
 and needs no GPU. GPU requirements for future verification are undecided.
 
-Use Python 3.11 or 3.12 in an isolated environment. The chain adapter follows the
-existing SDK 9.12.2 storage-query interface and pins that dependency. Verify its
+Use Python 3.12 in an isolated environment. The chain adapter pins
+`async-substrate-interface` in the repository's dependency lock. Verify its
 native dependencies on the selected Linux architecture during host acceptance;
 do not assume newer SDK APIs are drop-in replacements. The official generic
 [compute template](https://github.com/RaoFoundation/bittensor-subnet-template/blob/main/min_compute.yml)

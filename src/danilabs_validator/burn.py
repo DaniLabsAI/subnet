@@ -7,7 +7,7 @@ import secrets
 
 from .chain import FinalizedChain, unsigned_newtype, value
 from .config import LOCALNET_GENESIS, Settings
-from .custody import CustodyError, EncryptedHotkey, SignerPolicy
+from .custody import CustodyError, EncryptedHotkey, RUNTIME_CODE_HASHES, SignerPolicy
 from .monitor import assess, load_state, save_state
 
 
@@ -42,6 +42,8 @@ def preflight(snapshot, settings, previous=None, policy=None):
     reasons = list(report["burn_guard"]["blocked_reasons"])
     if snapshot.get("runtime_spec_version") != policy.runtime_spec:
         reasons.append("Runtime differs from the reviewed signing policy")
+    elif policy.runtime_spec in RUNTIME_CODE_HASHES and snapshot.get("runtime_code_hash") != RUNTIME_CODE_HASHES[policy.runtime_spec]:
+        reasons.append("Finalized WASM differs from the reviewed runtime code hash")
     if snapshot.get("weights_version") != policy.version_key:
         reasons.append("Weight version differs from the signing policy")
     self_weight = snapshot.get('owner',{}).get('uid') == snapshot.get('validator',{}).get('uid')
