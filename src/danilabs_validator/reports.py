@@ -29,6 +29,7 @@ POLICY_VERSION='performance-v4-terminal-success-reliability-tps50-ttft35-reliabi
 MODEL_POLICY={'openai/gpt-oss-20b':{'tps':300,'ttft_ms':500,'budget':1}}
 COMPONENT_WEIGHTS={'tps':.50,'ttft':.35,'reliability':.10,'ping':.05}
 MAX_BYTES=2*1024*1024
+MAX_DECODE_TPS_MILLI=100_000_000
 
 
 class ReportError(ValueError):
@@ -166,7 +167,7 @@ def score(report,identities):
             buckets.add(key)
             if not re.fullmatch(r'p_(?:le_1024|le_8192|gt_8192)/o_(?:le_128|le_1024|gt_1024)',bucket):raise ReportError('Unknown workload definition')
             n=integer(model['samples']);model_samples+=n
-            tps=integer(model['decode_tps_milli'],100_000_000)/1000
+            tps=integer(model['decode_tps_milli'],MAX_DECODE_TPS_MILLI)/1000
             ttft=integer(model['p50_ttft_ms'],3_600_000)
             p95ttft=integer(model['p95_ttft_ms'],3_600_000)
             tokens=integer(model['output_tokens']);integer(model['input_tokens'])

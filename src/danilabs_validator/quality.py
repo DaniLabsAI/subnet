@@ -8,7 +8,7 @@ from statistics import median
 
 from bittensor_wallet import Keypair
 
-from .reports import MAX_BYTES, METRICS, MODEL_POLICY, ReportError, integer, score, strict_json
+from .reports import MAX_BYTES, MAX_DECODE_TPS_MILLI, METRICS, MODEL_POLICY, ReportError, integer, score, strict_json
 
 SCHEMA = 'danilabs.independent-quality.v1'
 MIN_SAMPLES_PER_MINER = 5
@@ -94,7 +94,12 @@ def qualified_candidates(report, identities, body, signature, *, verifier_key, r
             ('input_tokens',131072),('output_tokens',131072),('ttft_ms',3600000),('decode_ms',3600000)))
         if prompt+output > 131072 or not prompt:
             raise ReportError('Independent token count is outside model limits')
-        if output < 2 or not decode:
+        # A decode rate outside the score contract, such as buffered tokens sent
+        # in one burst, is not valid decode timing. Like a short success, it
+        # counts toward reliability but stays out of throughput cohorts, so one
+        # miner's timing cannot void the audited vector for every miner.
+        if (output < 2 or not decode
+                or not decode <= (output-1)*1_000_000 <= MAX_DECODE_TPS_MILLI*decode):
             continue
         groups[model,_workload(prompt,output),uid].append((prompt,output,ttft,decode))
 

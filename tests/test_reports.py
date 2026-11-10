@@ -97,6 +97,31 @@ class ReportTests(unittest.TestCase):
                 self.assertEqual(result['status'],state)
                 self.assertEqual(result['candidate_weights'],baseline['candidate_weights'] if state=='ready' else [])
 
+    def test_out_of_range_audited_decode_rate_does_not_void_other_miners(self):
+        from danilabs_validator.quality import SCHEMA as AUDIT_SCHEMA, qualified_candidates
+        verifier=Keypair.create_from_seed('0x'+'33'*32)
+        report=validated();base=report['miners'][0]
+        report['miners']+=[base|{'uid':uid,'hotkey':f'peer-{uid}'} for uid in (59,60)]
+        identities=IDENTITY|{f'peer-{uid}':{'uid':uid,'registration_block':100} for uid in (59,60)}
+        def row(uid,index,output,decode):
+            return {'request_id':f'audit-{uid}-{index}','uid':uid,'model_id':'openai/gpt-oss-20b',
+                    'finished_at':report['window_start'],'input_tokens':100,'output_tokens':output,
+                    'ttft_ms':200,'decode_ms':decode,'token_count_verified':True,'correctness_verified':True}
+        def run(samples):
+            body=json.dumps({'schema':AUDIT_SCHEMA,'report_sha256':report['report_sha256'],'samples':samples}).encode()
+            return qualified_candidates(report,identities,body,base64.b64encode(verifier.sign(body)).decode(),
+                                        verifier_key=verifier.public_key.hex(),report_key=PUBLIC.hex())
+        # A buffered burst (299 tokens in 1 ms) exceeds the maximum decode rate.
+        # Two tokens over an hour rounds to zero milli-TPS. Each shares a cohort
+        # with two honest miners.
+        for output,decode,outlier in [(300,1000,(300,1)),(100,1000,(2,3_600_000))]:
+            honest=[row(uid,index,output,decode) for uid in (58,59) for index in range(5)]
+            with self.subTest(outlier=outlier):
+                result=run(honest+[row(60,index,*outlier) for index in range(5)])
+                self.assertEqual(result['candidate_weights'],run(honest)['candidate_weights'])
+                self.assertEqual(result['candidate_weights'],[[58,32768],[59,32767]])
+                self.assertNotIn(60,[row['uid'] for row in result['scores']])
+
     def test_tampering_wrong_key_and_unsigned_reports_rejected(self):
         body,headers=signed(document())
         for b,h in [(body+b' ',headers),(body,{}),(body,headers|{'X-Dani-Report-Key-ID':'wrong'})]:
